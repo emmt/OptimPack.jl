@@ -2,13 +2,14 @@
 
 [![Build Status](https://travis-ci.org/emmt/OptimPack.jl.svg?branch=master)](https://travis-ci.org/emmt/OptimPack.jl)
 
-OptimPack.jl is the Julia interface to OptimPack, a library for
-solving large scale optimization problems.
+OptimPack.jl is the Julia interface to
+[OptimPack](https://github.com/emmt/OptimPack), a library for solving
+large scale optimization problems.
 
-**Warning** Although this package is already usable to solve real (and
-  large!) optimization problems, it is a *work in progress* the
-  function/type/constant names and API are not yet satisfying and
-  subject to change.
+**Warning:** Although this package is already usable to solve real
+  (and large!) optimization problems, it is a *work in progress*.  The
+  function/type/constant names and API are not yet satisfying, thus
+  changes are expected.
 
 
 ## Unconstrained Minimization of a Nonlinear Smooth Function
