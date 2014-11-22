@@ -651,13 +651,14 @@ function nlcg{T,N}(fg!::Function, x0::Array{T,N},
             if verb
                 iter = iterations(opt)
                 eval = evaluations(opt)
+                rest = restarts(opt)
                 if iter == 0
                     @printf("%s\n%s\n",
-                            " ITER   EVAL           F(X)             ||G(X)||",
-                            "-------------------------------------------------")
+                            " ITER   EVAL  RESTARTS         F(X)             ||G(X)||",
+                            "--------------------------------------------------------")
                 end
-                @printf("%5d  %5d  %24.16E %10.3E\n",
-                        iter, eval, f, norm2(wg))
+                @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
+                        iter, eval, rest, f, norm2(wg))
             end
             if task == OPK_TASK_FINAL_X
                 return x
@@ -710,13 +711,14 @@ function vmlm{T,N}(fg!::Function, x0::Array{T,N},
             if verb
                 iter = iterations(opt)
                 eval = evaluations(opt)
+                rest = restarts(opt)
                 if iter == 0
                     @printf("%s\n%s\n",
-                            " ITER   EVAL           F(X)             ||G(X)||",
-                            "-------------------------------------------------")
+                            " ITER   EVAL  RESTARTS         F(X)             ||G(X)||",
+                            "--------------------------------------------------------")
                 end
-                @printf("%5d  %5d  %24.16E %10.3E\n",
-                        iter, eval, f, norm2(wg))
+                @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
+                        iter, eval, rest, f, norm2(wg))
             end
             if task == OPK_TASK_FINAL_X
                 return x
