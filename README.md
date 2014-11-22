@@ -5,6 +5,11 @@
 OptimPack.jl is the Julia interface to OptimPack, a library for
 solving large scale optimization problems.
 
+**Warning** Although this package is already usable to solve real (and
+  large!) optimization problems, it is a *work in progress* the
+  function/type/constant names and API are not yet satisfying and
+  subject to change.
+
 
 ## Unconstrained Minimization of a Nonlinear Smooth Function
 
@@ -171,7 +176,7 @@ gradient difference `y`.
 To create a vector space for vectors of dimensions `dims` and element type
 `T`:
 ```julia
-space = OptimPack.OptimPackShapedVectorSpace(T, dims)
+space = OptimPack.OptimPackDenseVectorSpace(T, dims)
 ```
 where `T` is `Float32` or `Float64` (or any type alias of these,
 e.g. `Cfloat` or `Cdouble`) and `dims` is a tuple of the dimensions.
