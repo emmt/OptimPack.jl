@@ -27,7 +27,7 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   lbfgs(rosenbrock_fg!, x0, m, verb=true)
 end
 
-#space = OptimPack.OptimPackShapedVectorSpace(Float64, 10)
+#space = OptimPack.ShapedVectorSpace(Float64, 10)
 
 x0 = Array(Float64, 20)
 rosenbrock_init!(x0)
@@ -36,11 +36,11 @@ x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
 #println(x1)
 println("\nTesting VMLM in double precision with Oren & Spedicato scaling")
 x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.OPK_SCALING_OREN_SPEDICATO)
+                    scaling=OptimPack.SCALING_OREN_SPEDICATO)
 #println(x2)
 println("\nTesting VMLM in double precision with Barzilai & Borwein scaling")
 x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.OPK_SCALING_BARZILAI_BORWEIN)
+                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
 #println(x3)
 
 x0 = Array(Float32, 20)
@@ -50,10 +50,10 @@ x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
 #println(x1)
 println("\nTesting VMLM in single precision with Oren & Spedicato scaling")
 x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.OPK_SCALING_OREN_SPEDICATO)
+                    scaling=OptimPack.SCALING_OREN_SPEDICATO)
 #println(x2)
 println("\nTesting VMLM in single precision with Barzilai & Borwein scaling")
 x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.OPK_SCALING_BARZILAI_BORWEIN)
+                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
 #println(x3)
 
