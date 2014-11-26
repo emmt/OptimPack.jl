@@ -70,39 +70,39 @@ where `beta_{k}` is computed following different recipes.  To choose which
 recipe to use, the value of the `method` argument can be set to one of the
 following values:
 
-- `OPK_NLCG_FLETCHER_REEVES` for Fletcher & Reeve method;
-- `OPK_NLCG_HESTENES_STIEFEL` for Hestenes & Stiefel method;
-- `OPK_NLCG_POLAK_RIBIERE_POLYAK` for Polak, Ribière & Polyak method;
-- `OPK_NLCG_FLETCHER` for Fletcher "*Conjugate Descent*" method;
-- `OPK_NLCG_LIU_STOREY` for Liu & Storey method;
-- `OPK_NLCG_DAI_YUAN` for Dai & Yuan method;
-- `OPK_NLCG_PERRY_SHANNO` for Perry & Shanno update rule;
-- `OPK_NLCG_HAGER_ZHANG` for Hager & Zhang method.
+- `OptimPack.NLCG_FLETCHER_REEVES` for Fletcher & Reeve method;
+- `OptimPack.NLCG_HESTENES_STIEFEL` for Hestenes & Stiefel method;
+- `OptimPack.NLCG_POLAK_RIBIERE_POLYAK` for Polak, Ribière & Polyak method;
+- `OptimPack.NLCG_FLETCHER` for Fletcher "*Conjugate Descent*" method;
+- `OptimPack.NLCG_LIU_STOREY` for Liu & Storey method;
+- `OptimPack.NLCG_DAI_YUAN` for Dai & Yuan method;
+- `OptimPack.NLCG_PERRY_SHANNO` for Perry & Shanno update rule;
+- `OptimPack.NLCG_HAGER_ZHANG` for Hager & Zhang method.
 
 The above values can be bitwise or'ed with the following bits:
 
-- `OPK_NLCG_POWELL` to force parameter `beta` to be nonnegative;
-- `OPK_NLCG_SHANNO_PHUA` to guess the step length following the
+- `OptimPack.NLCG_POWELL` to force parameter `beta` to be nonnegative;
+- `OptimPack.NLCG_SHANNO_PHUA` to guess the step length following the
   prescription of Shanno & Phua.
 
 For instance:
 ```julia
-method = OPK_NLCG_POLAK_RIBIERE_POLYAK | OPK_NLCG_POWELL
+method = OptimPack.NLCG_POLAK_RIBIERE_POLYAK | OptimPack.NLCG_POWELL
 ```
 merely corresponds to PRP+ algorithm by Polak, Ribière & Polyak; while:
 ```julia
-method = OPK_NLCG_PERRY_SHANNO | OPK_NLCG_SHANNO_PHUA
+method = OptimPack.NLCG_PERRY_SHANNO | OptimPack.NLCG_SHANNO_PHUA
 ```
 merely corresponds to the nonlinear conjugate gradient method implemented
 in CONMIN (Shanno & Phua, 1980).
 
 The default settings for nonlinear conjugate gradient is:
 ```julia
-const OPK_NLCG_DEFAULT  = (OPK_NLCG_HAGER_ZHANG | OPK_NLCG_SHANNO_PHUA)
+const OptimPack.NLCG_DEFAULT  = (OptimPack.NLCG_HAGER_ZHANG | OptimPack.NLCG_SHANNO_PHUA)
 ```
 
 
-### Convergence Settings
+### Convergence Criteria
 
 The nonlinear conjugate gradient methods are iterative algorithms, the
 convergence is assumed to be achieved when the Euclidean norm of the
@@ -127,9 +127,9 @@ x = OptimPack.nlcg(fg!, x0, method, lnsrch=ls)
 ```
 where `ls` is one of the implemented line search methods:
 ```julia
-ls = OptimPack.OptimPackArmijoLineSearch(ftol)
-ls = OptimPack.OptimPackMoreThuenteLineSearch(ftol, gtol, xtol)
-ls = OptimPack.OptimPackNonmonotoneLineSearch(m, ftol=..., amin=..., amax=...)
+ls = OptimPack.ArmijoLineSearch(ftol)
+ls = OptimPack.MoreThuenteLineSearch(ftol, gtol, xtol)
+ls = OptimPack.NonmonotoneLineSearch(m, ftol=..., amin=..., amax=...)
 ```
 with `ftol` the tolerance on the function reduction for the Armijo or first
 Wolfe condition, `gtol` the tolerance on the gradient for the second
@@ -164,9 +164,9 @@ be specified for `OptimPack.vmlm` and have the same meaning as for
 In addition to these keywords, you can specify how to scale the inverse
 Hessian in variable metric method via the `scaling` keyword:
 ```julia
-scaling = OPK_SCALING_NONE             # to use a unit scaling (no scaling)
-scaling = OPK_SCALING_OREN_SPEDICATO   # to scale by: gamma1 = <s,y>/<y,y>
-scaling = OPK_SCALING_BARZILAI_BORWEIN # to scale by: gamma2 = <s,s>/<s,y>
+scaling = SCALING_NONE             # to use a unit scaling (no scaling)
+scaling = SCALING_OREN_SPEDICATO   # to scale by: gamma1 = <s,y>/<y,y>
+scaling = SCALING_BARZILAI_BORWEIN # to scale by: gamma2 = <s,s>/<s,y>
 ```
 where `<s,y>` denotes the inner product between the previous step `s` and
 gradient difference `y`.
@@ -179,7 +179,7 @@ gradient difference `y`.
 To create a vector space for vectors of dimensions `dims` and element type
 `T`:
 ```julia
-space = OptimPack.OptimPackDenseVectorSpace(T, dims)
+space = OptimPack.DenseVectorSpace(T, dims)
 ```
 where `T` is `Float32` or `Float64` (or any type alias of these,
 e.g. `Cfloat` or `Cdouble`) and `dims` is a tuple of the dimensions.
