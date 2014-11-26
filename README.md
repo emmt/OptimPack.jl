@@ -164,9 +164,9 @@ be specified for `OptimPack.vmlm` and have the same meaning as for
 In addition to these keywords, you can specify how to scale the inverse
 Hessian in variable metric method via the `scaling` keyword:
 ```julia
-scaling = SCALING_NONE             # to use a unit scaling (no scaling)
-scaling = SCALING_OREN_SPEDICATO   # to scale by: gamma1 = <s,y>/<y,y>
-scaling = SCALING_BARZILAI_BORWEIN # to scale by: gamma2 = <s,s>/<s,y>
+scaling = OptimPack.SCALING_NONE             # to use a unit scaling (no scaling)
+scaling = OptimPack.SCALING_OREN_SPEDICATO   # to scale by: gamma1 = <s,y>/<y,y>
+scaling = OptimPack.SCALING_BARZILAI_BORWEIN # to scale by: gamma2 = <s,s>/<s,y>
 ```
 where `<s,y>` denotes the inner product between the previous step `s` and
 gradient difference `y`.
