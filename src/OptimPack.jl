@@ -321,15 +321,19 @@ end
 
 type OptimPackNonmonotoneLineSearch <: OptimPackLineSearch
     handle::Ptr{Void}
-    ftol::Cdouble
     m::Int
-    function OptimPackNonmonotoneLineSearch(ftol::Real=1e-4, m::Integer=10)
+    ftol::Cdouble
+    amin::Cdouble
+    amax::Cdouble
+    function OptimPackNonmonotoneLineSearch(m::Integer=10; ftol::Real=1e-4,
+                                            amin::Real=0.1, amax::Real=0.9)
+        assert(m >= 1)
         assert(0.0 <= ftol < 1.0)
-        assert(1 <= m)
+        assert(0.0 < amin < amax < 1.0)
         ptr = ccall((:opk_lnsrch_new_nonmonotone, opklib), Ptr{Void},
-                (Cdouble, Cptrdiff_t), ftol, m)
-        systemerror("failed to create linesearch", ptr == C_NULL)
-        obj = new(ptr, ftol, m)
+                (Cptrdiff_t, Cdouble, Cdouble, Cdouble), m, ftol, amin, amax)
+        systemerror("failed to create nonmonotone linesearch", ptr == C_NULL)
+        obj = new(ptr, m, ftol, amin, amax)
         finalizer(obj, obj -> __drop_object__(obj.handle))
         return obj
     end

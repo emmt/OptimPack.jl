@@ -118,9 +118,9 @@ specify other values for these parameters than the default ones which are
 `gatol = 0.0` and `grtol = 1E-6`.
 
 
-### Linesearch Settings
+### Line Search Settings
 
-The keyword `lnsrch` can be used to specify another linesearch method than
+The keyword `lnsrch` can be used to specify another line search method than
 the default one:
 ```julia
 x = OptimPack.nlcg(fg!, x0, method, lnsrch=ls)
@@ -129,19 +129,21 @@ where `ls` is one of the implemented line search methods:
 ```julia
 ls = OptimPack.OptimPackArmijoLineSearch(ftol)
 ls = OptimPack.OptimPackMoreThuenteLineSearch(ftol, gtol, xtol)
-ls = OptimPack.OptimPackNonmonotoneLineSearch(ftol, m)
+ls = OptimPack.OptimPackNonmonotoneLineSearch(m, ftol=..., amin=..., amax=...)
 ```
 with `ftol` the tolerance on the function reduction for the Armijo or first
 Wolfe condition, `gtol` the tolerance on the gradient for the second
 (strong) Wolfe condition, `xtol` the relative precision for the step length
 (set to the machine relative precision by default) and `m` the number of
-previous steps to remember for the nonmonotone linesearch.
+previous steps to remember for the nonmonotone line search.  By default,
+the values used in SPG2 are used for the nonmonotone line search: `m = 10`,
+`ftol = 1E-4`, `amin = 0.1` and `amax = 0.9`.
 
-The linesearch is safeguarded by imposing lower and upper bounds on the
-step.  Keywords `stpmin` and `stpmax` can be used to specify the step
-bounds relatively to the size of the first step (for each linesearch).
-Their default values are: `stpmin = 1E-20` and `stpmax = 1E+20`; if
-specified, they must be such that: `0 <= stpmin < stpmax`.
+The line search is safeguarded by imposing lower and upper bounds on the
+step.  In `nlcg` and `vmlm`, keywords `stpmin` and `stpmax` can be used to
+specify the step bounds relatively to the size of the first step (for each
+line search).  Their default values are: `stpmin = 1E-20` and `stpmax =
+1E+20`; if specified, they must be such that: `0 <= stpmin < stpmax`.
 
 
 ## Variable Metric with Limited Memory (VMLM)
