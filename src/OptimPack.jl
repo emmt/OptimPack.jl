@@ -1,5 +1,7 @@
 module OptimPack
 
+export nlcg, vmlm
+
 # Functions must be imported to be extended with new methods.
 import Base.size
 import Base.length
@@ -13,11 +15,8 @@ const opklib = "libOptimPack2"
 cint(i::Integer) = convert(Cint, i)
 cuint(i::Integer) = convert(Cuint, i)
 
-const OPK_SUCCESS = cint( 0)
-const OPK_FAILURE = cint(-1)
-
-typealias opkReal Union(Float32,Float64)
-typealias opkTypeReal Union(Type{Float32},Type{Float64})
+const SUCCESS = cint( 0)
+const FAILURE = cint(-1)
 
 #------------------------------------------------------------------------------
 # ERROR MANAGEMENT
@@ -26,30 +25,30 @@ typealias opkTypeReal Union(Type{Float32},Type{Float64})
 # an error exception and avoid aborting the program in case of misuse of the
 # library.
 
-opk_error(ptr::Ptr{Uint8}) = (ErrorException(bytestring(ptr)); nothing)
+__error__(ptr::Ptr{Uint8}) = (ErrorException(bytestring(ptr)); nothing)
 
-#function opk_error(str::String) = ErrorException(str)
+#function __error__(str::String) = ErrorException(str)
 
-const _opk_error = cfunction(opk_error, Void, (Ptr{Uint8},))
+const __cerror__ = cfunction(__error__, Void, (Ptr{Uint8},))
 
-function opk_init()
-    ccall((:opk_set_error_handler,opklib),Ptr{Void},(Ptr{Void},),_opk_error)
+function __init__()
+    ccall((:opk_set_error_handler,opklib),Ptr{Void},(Ptr{Void},),__cerror__)
     nothing
 end
 
-opk_init()
+__init__()
 
 #------------------------------------------------------------------------------
 # OBJECT MANAGEMENT
 #
-# All concrete types derived from the abstract OptimPackObject type have a
+# All concrete types derived from the abstract Object type have a
 # `handle` member which stores the address of the OptimPack object.
-abstract OptimPackObject
-abstract OptimPackVectorSpace <: OptimPackObject
-abstract OptimPackVector      <: OptimPackObject
-abstract OptimPackLineSearch  <: OptimPackObject
+abstract Object
+abstract VectorSpace <: Object
+abstract Vector      <: Object
+abstract LineSearch  <: Object
 
-function references(obj::OptimPackObject)
+function references(obj::Object)
     ccall((:opk_get_object_references, opklib), Cptrdiff_t, (Ptr{Void},), obj.handle)
 end
 
@@ -70,7 +69,7 @@ end
 # VECTOR SPACES
 #
 
-type OptimPackDenseVectorSpace{T,N} <: OptimPackVectorSpace
+type DenseVectorSpace{T,N} <: VectorSpace
     handle::Ptr{Void}
     eltype::Type{T}
     size::NTuple{N,Int}
@@ -78,13 +77,13 @@ type OptimPackDenseVectorSpace{T,N} <: OptimPackVectorSpace
 end
 
 # Extend basic functions for arrays.
-length(vsp::OptimPackDenseVectorSpace) = vsp.length
-eltype(vsp::OptimPackDenseVectorSpace) = vsp.eltype
-size(vsp::OptimPackDenseVectorSpace) = vsp.size
-size(vsp::OptimPackDenseVectorSpace, n::Integer) = vsp.size[n]
-ndims(vsp::OptimPackDenseVectorSpace) = length(vsp.size)
+length(vsp::DenseVectorSpace) = vsp.length
+eltype(vsp::DenseVectorSpace) = vsp.eltype
+size(vsp::DenseVectorSpace) = vsp.size
+size(vsp::DenseVectorSpace, n::Integer) = vsp.size[n]
+ndims(vsp::DenseVectorSpace) = length(vsp.size)
 
-OptimPackDenseVectorSpace(T::opkTypeReal, dims::Int...) = OptimPackDenseVectorSpace(T, dims)
+DenseVectorSpace(T::Union(Type{Cfloat},Type{Cdouble}), dims::Int...) = DenseVectorSpace(T, dims)
 
 function checkdims{N}(dims::NTuple{N,Int})
     number::Int = 1
@@ -97,90 +96,90 @@ function checkdims{N}(dims::NTuple{N,Int})
     return number
 end
 
-function OptimPackDenseVectorSpace{N}(::Type{Cfloat}, dims::NTuple{N,Int})
+function DenseVectorSpace{N}(::Type{Cfloat}, dims::NTuple{N,Int})
     length::Int = checkdims(dims)
     ptr = ccall((:opk_new_simple_float_vector_space, opklib),
                 Ptr{Void}, (Cptrdiff_t,), length)
     systemerror("failed to create vector space", ptr == C_NULL)
-    obj = OptimPackDenseVectorSpace{Cfloat,N}(ptr, Cfloat, dims, length)
+    obj = DenseVectorSpace{Cfloat,N}(ptr, Cfloat, dims, length)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function OptimPackDenseVectorSpace{N}(::Type{Cdouble}, dims::NTuple{N,Int})
+function DenseVectorSpace{N}(::Type{Cdouble}, dims::NTuple{N,Int})
     length::Int = checkdims(dims)
     ptr = ccall((:opk_new_simple_double_vector_space, opklib),
                 Ptr{Void}, (Cptrdiff_t,), length)
     systemerror("failed to create vector space", ptr == C_NULL)
-    obj = OptimPackDenseVectorSpace{Cdouble,N}(ptr, Cdouble, dims, length)
+    obj = DenseVectorSpace{Cdouble,N}(ptr, Cdouble, dims, length)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
 # Note: There are no needs to register a reference for the owner of a
 # vector (it already owns one internally).
-type OptimPackDenseVector{T<:opkReal,N} <: OptimPackVector
+type DenseVector{T<:Union(Cfloat,Cdouble),N} <: Vector
     handle::Ptr{Void}
-    owner::OptimPackDenseVectorSpace{T,N}
+    owner::DenseVectorSpace{T,N}
     array::Union(Array,Nothing)
 end
 
-length(v::OptimPackDenseVector) = length(v.owner)
-eltype(v::OptimPackDenseVector) = eltype(v.owner)
-size(v::OptimPackDenseVector) = size(v.owner)
-size(v::OptimPackDenseVector, n::Integer) = size(v.owner, n)
-ndims(v::OptimPackDenseVector) = ndims(v.owner)
+length(v::DenseVector) = length(v.owner)
+eltype(v::DenseVector) = eltype(v.owner)
+size(v::DenseVector) = size(v.owner)
+size(v::DenseVector, n::Integer) = size(v.owner, n)
+ndims(v::DenseVector) = ndims(v.owner)
 
 # FIXME: add means to wrap a Julia array around this or (better?, simpler?)
 #        just use allocate a Julia array and wrap a vector around it?
-function create{T<:opkReal,N<:Integer}(vspace::OptimPackDenseVectorSpace{T,N})
+function create{T<:Union(Cfloat,Cdouble),N<:Integer}(vspace::DenseVectorSpace{T,N})
     ptr = ccall((:opk_vcreate, opklib), Ptr{Void}, (Ptr{Void},), vspace.handle)
     systemerror("failed to create vector", ptr == C_NULL)
-    obj = OptimPackDenseVector{T,N}(ptr, vspace, nothing)
+    obj = DenseVector{T,N}(ptr, vspace, nothing)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function wrap{T<:Cfloat,N}(s::OptimPackDenseVectorSpace{T,N}, a::DenseArray{T,N})
+function wrap{T<:Cfloat,N}(s::DenseVectorSpace{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(s))
     ptr = ccall((:opk_wrap_simple_float_vector, opklib), Ptr{Void},
                 (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
                 s.handle, a, C_NULL, C_NULL)
     systemerror("failed to wrap vector", ptr == C_NULL)
-    obj = OptimPackDenseVector{T,N}(ptr, s, a)
+    obj = DenseVector{T,N}(ptr, s, a)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function wrap!{T<:Cfloat,N}(v::OptimPackDenseVector{T,N}, a::DenseArray{T,N})
+function wrap!{T<:Cfloat,N}(v::DenseVector{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(v))
     assert(v.array != nothing)
     status = ccall((:opk_rewrap_simple_float_vector, opklib), Cint,
                    (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
                    v.handle, a, C_NULL, C_NULL)
-    systemerror("failed to re-wrap vector", status != OPK_SUCCESS)
+    systemerror("failed to re-wrap vector", status != SUCCESS)
     v.array = a
     return v
 end
 
-function wrap{T<:Cdouble,N}(s::OptimPackDenseVectorSpace{T,N}, a::DenseArray{T,N})
+function wrap{T<:Cdouble,N}(s::DenseVectorSpace{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(s))
     ptr = ccall((:opk_wrap_simple_double_vector, opklib), Ptr{Void},
                 (Ptr{Void}, Ptr{Cdouble}, Ptr{Void}, Ptr{Void}),
                 s.handle, a, C_NULL, C_NULL)
     systemerror("failed to wrap vector", ptr == C_NULL)
-    obj = OptimPackDenseVector{T,N}(ptr, s, a)
+    obj = DenseVector{T,N}(ptr, s, a)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function wrap!{T<:Cdouble,N}(v::OptimPackDenseVector{T,N}, a::DenseArray{T,N})
+function wrap!{T<:Cdouble,N}(v::DenseVector{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(v))
     assert(v.array != nothing)
     status = ccall((:opk_rewrap_simple_double_vector, opklib), Cint,
                    (Ptr{Void}, Ptr{Cdouble}, Ptr{Void}, Ptr{Void}),
                    v.handle, a, C_NULL, C_NULL)
-    systemerror("failed to re-wrap vector", status != OPK_SUCCESS)
+    systemerror("failed to re-wrap vector", status != SUCCESS)
     v.array = a
     return v
 end
@@ -188,55 +187,55 @@ end
 #------------------------------------------------------------------------------
 # OPERATIONS ON VECTORS
 
-function norm1(vec::OptimPackVector)
+function norm1(vec::Vector)
     ccall((:opk_vnorm1,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function norm2(vec::OptimPackVector)
+function norm2(vec::Vector)
     ccall((:opk_vnorm2,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function norminf(vec::OptimPackVector)
+function norminf(vec::Vector)
     ccall((:opk_vnorminf,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function zero(vec::OptimPackVector)
+function zero(vec::Vector)
     ccall((:opk_vzero,opklib), Void, (Ptr{Void},), vec.handle)
 end
 
-function fill(vec::OptimPackVector, val::Real)
+function fill(vec::Vector, val::Real)
     ccall((:opk_vfill, opklib), Void, (Ptr{Void},Cdouble), vec.handle, val)
 end
 
-function copy(dst::OptimPackVector, src::OptimPackVector)
+function copy(dst::Vector, src::Vector)
     ccall((:opk_vcopy,opklib), Void, (Ptr{Void},Ptr{Void}), dst.handle, src.handle)
 end
 
-function scale(dst::OptimPackVector, alpha::Real, src::OptimPackVector)
+function scale(dst::Vector, alpha::Real, src::Vector)
     ccall((:opk_vscale,opklib), Void, (Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, src.handle)
 end
 
-function swap(x::OptimPackVector, y::OptimPackVector)
+function swap(x::Vector, y::Vector)
     ccall((:opk_vswap,opklib), Void, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
 end
 
-function dot(x::OptimPackVector, y::OptimPackVector)
+function dot(x::Vector, y::Vector)
     ccall((:opk_vdot,opklib), Cdouble, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
 end
 
-function axpby(dst::OptimPackVector,
-               alpha::Real, x::OptimPackVector,
-               beta::Real,  y::OptimPackVector)
+function axpby(dst::Vector,
+               alpha::Real, x::Vector,
+               beta::Real,  y::Vector)
     ccall((:opk_vaxpby,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle)
 end
 
-function axpbypcz(dst::OptimPackVector,
-                  alpha::Real, x::OptimPackVector,
-                  beta::Real,  y::OptimPackVector,
-                  gamma::Real, z::OptimPackVector)
+function axpbypcz(dst::Vector,
+                  alpha::Real, x::Vector,
+                  beta::Real,  y::Vector,
+                  gamma::Real, z::Vector)
     ccall((:opk_vaxpbypcz,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle, gamma, y.handle)
@@ -246,36 +245,36 @@ end
 # OPERATORS
 
 if false
-    function apply_direct(op::OptimPackOperator,
-                          dst::OptimPackVector,
-                          src::OptimPackVector)
+    function apply_direct(op::Operator,
+                          dst::Vector,
+                          src::Vector)
         status = ccall((:opk_apply_direct,opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
-        if status != OPK_SUCCESS
+        if status != SUCCESS
             error("something wrong happens")
         end
         nothing
     end
 
-    function apply_adoint(op::OptimPackOperator,
-                          dst::OptimPackVector,
-                          src::OptimPackVector)
+    function apply_adoint(op::Operator,
+                          dst::Vector,
+                          src::Vector)
         status = ccall((:opk_apply_adjoint,opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
-        if status != OPK_SUCCESS
+        if status != SUCCESS
             error("something wrong happens")
         end
         nothing
     end
-    function apply_inverse(op::OptimPackOperator,
-                           dst::OptimPackVector,
-                           src::OptimPackVector)
+    function apply_inverse(op::Operator,
+                           dst::Vector,
+                           src::Vector)
         status = ccall((:opk_apply_inverse,opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
-        if status != OPK_SUCCESS
+        if status != SUCCESS
             error("something wrong happens")
         end
         nothing
@@ -285,12 +284,12 @@ end
 #------------------------------------------------------------------------------
 # LINE SEARCH METHODS
 
-abstract OptimPackLineSearch <: OptimPackObject
+abstract LineSearch <: Object
 
-type OptimPackArmijoLineSearch <: OptimPackLineSearch
+type ArmijoLineSearch <: LineSearch
     handle::Ptr{Void}
     ftol::Cdouble
-    function OptimPackArmijoLineSearch(ftol::Real=1e-4)
+    function ArmijoLineSearch(ftol::Real=1e-4)
         assert(0.0 <= ftol < 1.0)
         ptr = ccall((:opk_lnsrch_new_backtrack, opklib), Ptr{Void},
                 (Cdouble,), ftol)
@@ -301,12 +300,12 @@ type OptimPackArmijoLineSearch <: OptimPackLineSearch
     end
 end
 
-type OptimPackMoreThuenteLineSearch <: OptimPackLineSearch
+type MoreThuenteLineSearch <: LineSearch
     handle::Ptr{Void}
     ftol::Cdouble
     gtol::Cdouble
     xtol::Cdouble
-    function OptimPackMoreThuenteLineSearch(ftol::Real=1e-4, gtol::Real=0.9,
+    function MoreThuenteLineSearch(ftol::Real=1e-4, gtol::Real=0.9,
                                             xtol::Real=eps(Cdouble))
         assert(0.0 <= ftol < gtol < 1.0)
         assert(0.0 <= xtol < 1.0)
@@ -319,13 +318,13 @@ type OptimPackMoreThuenteLineSearch <: OptimPackLineSearch
     end
 end
 
-type OptimPackNonmonotoneLineSearch <: OptimPackLineSearch
+type NonmonotoneLineSearch <: LineSearch
     handle::Ptr{Void}
     m::Int
     ftol::Cdouble
     amin::Cdouble
     amax::Cdouble
-    function OptimPackNonmonotoneLineSearch(m::Integer=10; ftol::Real=1e-4,
+    function NonmonotoneLineSearch(m::Integer=10; ftol::Real=1e-4,
                                             amin::Real=0.1, amax::Real=0.9)
         assert(m >= 1)
         assert(0.0 <= ftol < 1.0)
@@ -339,33 +338,33 @@ type OptimPackNonmonotoneLineSearch <: OptimPackLineSearch
     end
 end
 
-const OPK_LNSRCH_ERROR_ILLEGAL_ADDRESS                    = cint(-12)
-const OPK_LNSRCH_ERROR_CORRUPTED_WORKSPACE                = cint(-11)
-const OPK_LNSRCH_ERROR_BAD_WORKSPACE                      = cint(-10)
-const OPK_LNSRCH_ERROR_STP_CHANGED                        = cint( -9)
-const OPK_LNSRCH_ERROR_STP_OUTSIDE_BRACKET                = cint( -8)
-const OPK_LNSRCH_ERROR_NOT_A_DESCENT                      = cint( -7)
-const OPK_LNSRCH_ERROR_STPMIN_GT_STPMAX                   = cint( -6)
-const OPK_LNSRCH_ERROR_STPMIN_LT_ZERO                     = cint( -5)
-const OPK_LNSRCH_ERROR_STP_LT_STPMIN                      = cint( -4)
-const OPK_LNSRCH_ERROR_STP_GT_STPMAX                      = cint( -3)
-const OPK_LNSRCH_ERROR_INITIAL_DERIVATIVE_GE_ZERO         = cint( -2)
-const OPK_LNSRCH_ERROR_NOT_STARTED                        = cint( -1)
-const OPK_LNSRCH_SEARCH                                   = cint(  0)
-const OPK_LNSRCH_CONVERGENCE                              = cint(  1)
-const OPK_LNSRCH_WARNING_ROUNDING_ERRORS_PREVENT_PROGRESS = cint(  2)
-const OPK_LNSRCH_WARNING_XTOL_TEST_SATISFIED              = cint(  3)
-const OPK_LNSRCH_WARNING_STP_EQ_STPMAX                    = cint(  4)
-const OPK_LNSRCH_WARNING_STP_EQ_STPMIN                    = cint(  5)
+const LNSRCH_ERROR_ILLEGAL_ADDRESS                    = cint(-12)
+const LNSRCH_ERROR_CORRUPTED_WORKSPACE                = cint(-11)
+const LNSRCH_ERROR_BAD_WORKSPACE                      = cint(-10)
+const LNSRCH_ERROR_STP_CHANGED                        = cint( -9)
+const LNSRCH_ERROR_STP_OUTSIDE_BRACKET                = cint( -8)
+const LNSRCH_ERROR_NOT_A_DESCENT                      = cint( -7)
+const LNSRCH_ERROR_STPMIN_GT_STPMAX                   = cint( -6)
+const LNSRCH_ERROR_STPMIN_LT_ZERO                     = cint( -5)
+const LNSRCH_ERROR_STP_LT_STPMIN                      = cint( -4)
+const LNSRCH_ERROR_STP_GT_STPMAX                      = cint( -3)
+const LNSRCH_ERROR_INITIAL_DERIVATIVE_GE_ZERO         = cint( -2)
+const LNSRCH_ERROR_NOT_STARTED                        = cint( -1)
+const LNSRCH_SEARCH                                   = cint(  0)
+const LNSRCH_CONVERGENCE                              = cint(  1)
+const LNSRCH_WARNING_ROUNDING_ERRORS_PREVENT_PROGRESS = cint(  2)
+const LNSRCH_WARNING_XTOL_TEST_SATISFIED              = cint(  3)
+const LNSRCH_WARNING_STP_EQ_STPMAX                    = cint(  4)
+const LNSRCH_WARNING_STP_EQ_STPMIN                    = cint(  5)
 
-function start!(ls::OptimPackLineSearch, f0::Real, df0::Real,
+function start!(ls::LineSearch, f0::Real, df0::Real,
                 stp1::Real, stpmin::Real, stpmax::Real)
     ccall((:opk_lnsrch_start, opklib), Cint,
           (Ptr{Void}, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
           ls, f0, df0, stp1, stpmin, stpmax)
 end
 
-function iterate!(ls::OptimPackLineSearch, stp::Real, f::Real, df::Real)
+function iterate!(ls::LineSearch, stp::Real, f::Real, df::Real)
     _stp = Cdouble[stp]
     task = ccall((:opk_lnsrch_iterate, opklib), Cint,
                  (Ptr{Void}, Ptr{Cdouble}, Cdouble, Cdouble),
@@ -373,21 +372,21 @@ function iterate!(ls::OptimPackLineSearch, stp::Real, f::Real, df::Real)
     return (task, _stp[1])
 end
 
-get_step(ls::OptimPackLineSearch) = ccall((:opk_lnsrch_get_step, opklib),
+get_step(ls::LineSearch) = ccall((:opk_lnsrch_get_step, opklib),
                                           Cdouble, (Ptr{Void}, ), ls)
-get_status(ls::OptimPackLineSearch) = ccall((:opk_lnsrch_get_status, opklib),
+get_status(ls::LineSearch) = ccall((:opk_lnsrch_get_status, opklib),
                                             Cint, (Ptr{Void}, ), ls)
-has_errors(ls::OptimPackLineSearch) = (ccall((:opk_lnsrch_has_errors, opklib),
+has_errors(ls::LineSearch) = (ccall((:opk_lnsrch_has_errors, opklib),
                                              Cint, (Ptr{Void}, ), ls) != 0)
-has_warnings(ls::OptimPackLineSearch) = (ccall((:opk_lnsrch_has_warnings, opklib),
+has_warnings(ls::LineSearch) = (ccall((:opk_lnsrch_has_warnings, opklib),
                                                Cint, (Ptr{Void}, ), ls) != 0)
-converged(ls::OptimPackLineSearch) = (ccall((:opk_lnsrch_converged, opklib),
+converged(ls::LineSearch) = (ccall((:opk_lnsrch_converged, opklib),
                                             Cint, (Ptr{Void}, ), ls) != 0)
-finished(ls::OptimPackLineSearch) = (ccall((:opk_lnsrch_finished, opklib),
+finished(ls::LineSearch) = (ccall((:opk_lnsrch_finished, opklib),
                                             Cint, (Ptr{Void}, ), ls) != 0)
-get_ftol(ls::OptimPackLineSearch) = ls.ftol
-get_gtol(ls::OptimPackMoreThuenteLineSearch) = ls.gtol
-get_xtol(ls::OptimPackMoreThuenteLineSearch) = ls.xtol
+get_ftol(ls::LineSearch) = ls.ftol
+get_gtol(ls::MoreThuenteLineSearch) = ls.gtol
+get_xtol(ls::MoreThuenteLineSearch) = ls.xtol
 
 
 #------------------------------------------------------------------------------
@@ -395,46 +394,48 @@ get_xtol(ls::OptimPackMoreThuenteLineSearch) = ls.xtol
 
 # Codes returned by the reverse communication version of optimzation
 # algorithms.
-const OPK_TASK_ERROR      = cint(-1) # An error has ocurred.
-const OPK_TASK_COMPUTE_FG = cint( 0) # Caller shall compute f(x) and g(x).
-const OPK_TASK_NEW_X      = cint( 1) # A new iterate is available.
-const OPK_TASK_FINAL_X    = cint( 2) # Algorithm has converged, solution is available.
-const OPK_TASK_WARNING    = cint( 3) # Algorithm terminated with a warning.
-#typealias opkTask Cint
 
-abstract OptimPackOptimizer <: OptimPackObject
+const TASK_ERROR       = cint(-1) # An error has ocurred.
+const TASK_PROJECT_X   = cint( 0) # Caller must project variables x.
+const TASK_COMPUTE_FG  = cint( 1) # Caller must compute f(x) and g(x).
+const TASK_FREE_VARS   = cint( 2) # Caller must update the subspace of free variables.
+const TASK_NEW_X       = cint( 3) # A new iterate is available.
+const TASK_FINAL_X     = cint( 4) # Algorithm has converged, solution is available.
+const TASK_WARNING     = cint( 5) # Algorithm terminated with a warning.
+
+abstract Optimizer <: Object
 
 #------------------------------------------------------------------------------
 # NON LINEAR CONJUGATE GRADIENTS
 
-const OPK_NLCG_FLETCHER_REEVES        = cuint(1)
-const OPK_NLCG_HESTENES_STIEFEL       = cuint(2)
-const OPK_NLCG_POLAK_RIBIERE_POLYAK   = cuint(3)
-const OPK_NLCG_FLETCHER               = cuint(4)
-const OPK_NLCG_LIU_STOREY             = cuint(5)
-const OPK_NLCG_DAI_YUAN               = cuint(6)
-const OPK_NLCG_PERRY_SHANNO           = cuint(7)
-const OPK_NLCG_HAGER_ZHANG            = cuint(8)
-const OPK_NLCG_POWELL                 = cuint(1<<8) # force beta >= 0
-const OPK_NLCG_SHANNO_PHUA            = cuint(1<<9) # compute scale from previous iterations
+const NLCG_FLETCHER_REEVES        = cuint(1)
+const NLCG_HESTENES_STIEFEL       = cuint(2)
+const NLCG_POLAK_RIBIERE_POLYAK   = cuint(3)
+const NLCG_FLETCHER               = cuint(4)
+const NLCG_LIU_STOREY             = cuint(5)
+const NLCG_DAI_YUAN               = cuint(6)
+const NLCG_PERRY_SHANNO           = cuint(7)
+const NLCG_HAGER_ZHANG            = cuint(8)
+const NLCG_POWELL                 = cuint(1<<8) # force beta >= 0
+const NLCG_SHANNO_PHUA            = cuint(1<<9) # compute scale from previous iterations
 
-# For instance: (OPK_NLCG_POLAK_RIBIERE_POLYAK | OPK_NLCG_POWELL) merely
-# corresponds to PRP+ (Polak, Ribiere, Polyak) while (OPK_NLCG_PERRY_SHANNO |
-# OPK_NLCG_SHANNO_PHUA) merely corresponds to the conjugate gradient method
+# For instance: (NLCG_POLAK_RIBIERE_POLYAK | NLCG_POWELL) merely
+# corresponds to PRP+ (Polak, Ribiere, Polyak) while (NLCG_PERRY_SHANNO |
+# NLCG_SHANNO_PHUA) merely corresponds to the conjugate gradient method
 # implemented in CONMIN.
 #
 # Default settings for non linear conjugate gradient (should correspond to
 # the method which is, in general, the most successful). */
-const OPK_NLCG_DEFAULT  = (OPK_NLCG_HAGER_ZHANG | OPK_NLCG_SHANNO_PHUA)
+const NLCG_DEFAULT  = (NLCG_HAGER_ZHANG | NLCG_SHANNO_PHUA)
 
-type OptimPackNLCG <: OptimPackOptimizer
+type NLCG <: Optimizer
     handle::Ptr{Void}
-    vspace::OptimPackVectorSpace
+    vspace::VectorSpace
     method::Cuint
-    lnsrch::OptimPackLineSearch
-    function OptimPackNLCG(space::OptimPackVectorSpace,
-                           method::Integer=OPK_NLCG_DEFAULT;
-                           lnsrch::OptimPackLineSearch=OptimPackMoreThuenteLineSearch(1E-4, 0.1))
+    lnsrch::LineSearch
+    function NLCG(space::VectorSpace,
+                           method::Integer=NLCG_DEFAULT;
+                           lnsrch::LineSearch=MoreThuenteLineSearch(1E-4, 0.1))
         ptr = ccall((:opk_new_nlcg_optimizer_with_line_search, opklib), Ptr{Void},
                 (Ptr{Void}, Cuint, Ptr{Void}), space.handle, method, lnsrch.handle)
         systemerror("failed to create optimizer", ptr == C_NULL)
@@ -444,34 +445,34 @@ type OptimPackNLCG <: OptimPackOptimizer
     end
 end
 
-start!(opt::OptimPackNLCG) = ccall((:opk_start_nlcg, opklib), Cint,
+start!(opt::NLCG) = ccall((:opk_start_nlcg, opklib), Cint,
                                    (Ptr{Void},), opt.handle)
 
-function iterate!(opt::OptimPackNLCG, x::OptimPackVector, f::Real, g::OptimPackVector)
+function iterate!(opt::NLCG, x::Vector, f::Real, g::Vector)
     ccall((:opk_iterate_nlcg, opklib), Cint,
           (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
           opt.handle, x.handle, f, g.handle)
 end
 
-get_task(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_task, opklib),
+get_task(opt::NLCG) = ccall((:opk_get_nlcg_task, opklib),
                                      Cint, (Ptr{Void},), opt.handle)
-iterations(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_iterations, opklib),
+iterations(opt::NLCG) = ccall((:opk_get_nlcg_iterations, opklib),
                                        Cptrdiff_t, (Ptr{Void},), opt.handle)
-evaluations(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_evaluations, opklib),
+evaluations(opt::NLCG) = ccall((:opk_get_nlcg_evaluations, opklib),
                                         Cptrdiff_t, (Ptr{Void},), opt.handle)
-restarts(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_restarts, opklib),
+restarts(opt::NLCG) = ccall((:opk_get_nlcg_restarts, opklib),
                                      Cptrdiff_t, (Ptr{Void},), opt.handle)
-get_gatol(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_gatol, opklib),
+get_gatol(opt::NLCG) = ccall((:opk_get_nlcg_gatol, opklib),
                                       Cdouble, (Ptr{Void},), opt.handle)
-get_grtol(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_grtol, opklib),
+get_grtol(opt::NLCG) = ccall((:opk_get_nlcg_grtol, opklib),
                                       Cdouble, (Ptr{Void},), opt.handle)
-get_stpmin(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_stpmin, opklib),
+get_stpmin(opt::NLCG) = ccall((:opk_get_nlcg_stpmin, opklib),
                                        Cdouble, (Ptr{Void},), opt.handle)
-get_stpmax(opt::OptimPackNLCG) = ccall((:opk_get_nlcg_stpmax, opklib),
+get_stpmax(opt::NLCG) = ccall((:opk_get_nlcg_stpmax, opklib),
                                        Cdouble, (Ptr{Void},), opt.handle)
-function set_gatol!(opt::OptimPackNLCG, gatol::Real)
+function set_gatol!(opt::NLCG, gatol::Real)
     if ccall((:opk_set_nlcg_gatol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != OPK_SUCCESS
+             Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
         e = errno()
         if e == Base.EINVAL
             error("invalid value for parameter gatol")
@@ -480,9 +481,9 @@ function set_gatol!(opt::OptimPackNLCG, gatol::Real)
         end
     end
 end
-function set_grtol!(opt::OptimPackNLCG, grtol::Real)
+function set_grtol!(opt::NLCG, grtol::Real)
     if ccall((:opk_set_nlcg_grtol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != OPK_SUCCESS
+             Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
         e = errno()
         if e == Base.EINVAL
             error("invalid value for parameter grtol")
@@ -491,10 +492,10 @@ function set_grtol!(opt::OptimPackNLCG, grtol::Real)
         end
     end
 end
-function set_stpmin_and_stpmax!(opt::OptimPackNLCG, stpmin::Real, stpmax::Real)
+function set_stpmin_and_stpmax!(opt::NLCG, stpmin::Real, stpmax::Real)
     if ccall((:opk_set_nlcg_stpmin_and_stpmax, opklib),
              Cint, (Ptr{Void},Cdouble,Cdouble),
-             opt.handle, stpmin, stpmax) != OPK_SUCCESS
+             opt.handle, stpmin, stpmax) != SUCCESS
         e = errno()
         if e == Base.EINVAL
             error("invalid values for parameters stpmin and stpmax")
@@ -507,13 +508,13 @@ end
 #------------------------------------------------------------------------------
 # VARIABLE METRIC OPTIMIZATION METHOD
 
-type OptimPackVMLM <: OptimPackOptimizer
+type VMLM <: Optimizer
     handle::Ptr{Void}
-    vspace::OptimPackVectorSpace
+    vspace::VectorSpace
     m::Cptrdiff_t
-    lnsrch::OptimPackLineSearch
-    function OptimPackVMLM(space::OptimPackVectorSpace, m::Integer=3;
-                           lnsrch::OptimPackLineSearch=OptimPackMoreThuenteLineSearch(1E-4, 0.9))
+    lnsrch::LineSearch
+    function VMLM(space::VectorSpace, m::Integer=3;
+                           lnsrch::LineSearch=MoreThuenteLineSearch(1E-4, 0.9))
         if m < 1
             error("illegal number of memorized steps")
         end
@@ -531,34 +532,34 @@ type OptimPackVMLM <: OptimPackOptimizer
     end
 end
 
-start!(opt::OptimPackVMLM) = ccall((:opk_start_vmlm, opklib), Cint,
+start!(opt::VMLM) = ccall((:opk_start_vmlm, opklib), Cint,
                                    (Ptr{Void},), opt.handle)
 
-function iterate!(opt::OptimPackVMLM, x::OptimPackVector, f::Real, g::OptimPackVector)
+function iterate!(opt::VMLM, x::Vector, f::Real, g::Vector)
     ccall((:opk_iterate_vmlm, opklib), Cint,
           (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
           opt.handle, x.handle, f, g.handle)
 end
 
-get_task(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_task, opklib),
+get_task(opt::VMLM) = ccall((:opk_get_vmlm_task, opklib),
                                      Cint, (Ptr{Void},), opt.handle)
-iterations(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_iterations, opklib),
+iterations(opt::VMLM) = ccall((:opk_get_vmlm_iterations, opklib),
                                        Cptrdiff_t, (Ptr{Void},), opt.handle)
-evaluations(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_evaluations, opklib),
+evaluations(opt::VMLM) = ccall((:opk_get_vmlm_evaluations, opklib),
                                         Cptrdiff_t, (Ptr{Void},), opt.handle)
-restarts(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_restarts, opklib),
+restarts(opt::VMLM) = ccall((:opk_get_vmlm_restarts, opklib),
                                      Cptrdiff_t, (Ptr{Void},), opt.handle)
-get_gatol(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_gatol, opklib),
+get_gatol(opt::VMLM) = ccall((:opk_get_vmlm_gatol, opklib),
                                       Cdouble, (Ptr{Void},), opt.handle)
-get_grtol(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_grtol, opklib),
+get_grtol(opt::VMLM) = ccall((:opk_get_vmlm_grtol, opklib),
                                       Cdouble, (Ptr{Void},), opt.handle)
-get_stpmin(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_stpmin, opklib),
+get_stpmin(opt::VMLM) = ccall((:opk_get_vmlm_stpmin, opklib),
                                        Cdouble, (Ptr{Void},), opt.handle)
-get_stpmax(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_stpmax, opklib),
+get_stpmax(opt::VMLM) = ccall((:opk_get_vmlm_stpmax, opklib),
                                        Cdouble, (Ptr{Void},), opt.handle)
-function set_gatol!(opt::OptimPackVMLM, gatol::Real)
+function set_gatol!(opt::VMLM, gatol::Real)
     if ccall((:opk_set_vmlm_gatol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != OPK_SUCCESS
+             Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
         e = errno()
         if e == Base.EINVAL
             error("invalid value for parameter gatol")
@@ -567,9 +568,9 @@ function set_gatol!(opt::OptimPackVMLM, gatol::Real)
         end
     end
 end
-function set_grtol!(opt::OptimPackVMLM, grtol::Real)
+function set_grtol!(opt::VMLM, grtol::Real)
     if ccall((:opk_set_vmlm_grtol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != OPK_SUCCESS
+             Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
         e = errno()
         if e == Base.EINVAL
             error("invalid value for parameter grtol")
@@ -578,10 +579,10 @@ function set_grtol!(opt::OptimPackVMLM, grtol::Real)
         end
     end
 end
-function set_stpmin_and_stpmax!(opt::OptimPackVMLM, stpmin::Real, stpmax::Real)
+function set_stpmin_and_stpmax!(opt::VMLM, stpmin::Real, stpmax::Real)
     if ccall((:opk_set_vmlm_stpmin_and_stpmax, opklib),
              Cint, (Ptr{Void},Cdouble,Cdouble),
-             opt.handle, stpmin, stpmax) != OPK_SUCCESS
+             opt.handle, stpmin, stpmax) != SUCCESS
         e = errno()
         if e == Base.EINVAL
             error("invalid values for parameters stpmin and stpmax")
@@ -591,15 +592,15 @@ function set_stpmin_and_stpmax!(opt::OptimPackVMLM, stpmin::Real, stpmax::Real)
     end
 end
 
-const OPK_SCALING_NONE             = cint(0)
-const OPK_SCALING_OREN_SPEDICATO   = cint(1) # gamma = <s,y>/<y,y>
-const OPK_SCALING_BARZILAI_BORWEIN = cint(2) # gamma = <s,s>/<s,y>
+const SCALING_NONE             = cint(0)
+const SCALING_OREN_SPEDICATO   = cint(1) # gamma = <s,y>/<y,y>
+const SCALING_BARZILAI_BORWEIN = cint(2) # gamma = <s,s>/<s,y>
 
-get_scaling(opt::OptimPackVMLM) = ccall((:opk_get_vmlm_scaling, opklib),
+get_scaling(opt::VMLM) = ccall((:opk_get_vmlm_scaling, opklib),
                                       Cint, (Ptr{Void},), opt.handle)
-function set_scaling!(opt::OptimPackVMLM, scaling::Integer)
+function set_scaling!(opt::VMLM, scaling::Integer)
     if ccall((:opk_set_vmlm_scaling, opklib),
-             Cint, (Ptr{Void},Cint), opt.handle, scaling) != OPK_SUCCESS
+             Cint, (Ptr{Void},Cint), opt.handle, scaling) != SUCCESS
         error("unexpected error while setting scaling scaling")
     end
 end
@@ -620,25 +621,25 @@ end
 #   single or double precision floating point array.
 #
 function nlcg{T,N}(fg!::Function, x0::Array{T,N},
-                   method::Integer=OPK_NLCG_DEFAULT;
-                   lnsrch::Union(Nothing,OptimPackLineSearch)=nothing,
+                   method::Integer=NLCG_DEFAULT;
+                   lnsrch::Union(Nothing,LineSearch)=nothing,
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
                    verb::Bool=false, debug::Bool=false)
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
 
     if lnsrch == nothing
-        lnsrch = OptimPackMoreThuenteLineSearch()
+        lnsrch = MoreThuenteLineSearch()
     end
 
     # Allocate workspaces
     dims = size(x0)
-    space = OptimPackDenseVectorSpace(T, dims)
+    space = DenseVectorSpace(T, dims)
     x = copy(x0)
     g = Array(T, dims)
     wx = wrap(space, x)
     wg = wrap(space, g)
-    opt = OptimPackNLCG(space, method; lnsrch=lnsrch)
+    opt = NLCG(space, method; lnsrch=lnsrch)
     set_gatol!(opt, gatol)
     set_grtol!(opt, grtol)
     set_stpmin_and_stpmax!(opt, stpmin, stpmax)
@@ -649,9 +650,9 @@ function nlcg{T,N}(fg!::Function, x0::Array{T,N},
     end
     task = start!(opt)
     while true
-        if task == OPK_TASK_COMPUTE_FG
+        if task == TASK_COMPUTE_FG
             f = fg!(x, g)
-        elseif task == OPK_TASK_NEW_X || task == OPK_TASK_FINAL_X
+        elseif task == TASK_NEW_X || task == TASK_FINAL_X
             if verb
                 iter = iterations(opt)
                 eval = evaluations(opt)
@@ -664,13 +665,13 @@ function nlcg{T,N}(fg!::Function, x0::Array{T,N},
                 @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
                         iter, eval, rest, f, norm2(wg))
             end
-            if task == OPK_TASK_FINAL_X
+            if task == TASK_FINAL_X
                 return x
             end
-        elseif task == OPK_TASK_WARNING
+        elseif task == TASK_WARNING
             @printf("some warnings...\n")
             return x
-        elseif task == OPK_TASK_ERROR
+        elseif task == TASK_ERROR
             @printf("some errors...\n")
             return nothing
         else
@@ -683,8 +684,8 @@ end
 
 function vmlm{T,N}(fg!::Function, x0::Array{T,N},
                    m::Integer=3;
-                   scaling::Integer=OPK_SCALING_OREN_SPEDICATO,
-                   lnsrch::OptimPackLineSearch=OptimPackMoreThuenteLineSearch(),
+                   scaling::Integer=SCALING_OREN_SPEDICATO,
+                   lnsrch::LineSearch=MoreThuenteLineSearch(),
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
                    verb::Bool=false, debug::Bool=false)
@@ -692,12 +693,12 @@ function vmlm{T,N}(fg!::Function, x0::Array{T,N},
 
     # Allocate workspaces
     dims = size(x0)
-    space = OptimPackDenseVectorSpace(T, dims)
+    space = DenseVectorSpace(T, dims)
     x = copy(x0)
     g = Array(T, dims)
     wx = wrap(space, x)
     wg = wrap(space, g)
-    opt = OptimPackVMLM(space, m)
+    opt = VMLM(space, m)
     set_scaling!(opt, scaling)
     set_gatol!(opt, gatol)
     set_grtol!(opt, grtol)
@@ -709,9 +710,9 @@ function vmlm{T,N}(fg!::Function, x0::Array{T,N},
     end
     task = start!(opt)
     while true
-        if task == OPK_TASK_COMPUTE_FG
+        if task == TASK_COMPUTE_FG
             f = fg!(x, g)
-        elseif task == OPK_TASK_NEW_X || task == OPK_TASK_FINAL_X
+        elseif task == TASK_NEW_X || task == TASK_FINAL_X
             if verb
                 iter = iterations(opt)
                 eval = evaluations(opt)
@@ -724,13 +725,13 @@ function vmlm{T,N}(fg!::Function, x0::Array{T,N},
                 @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
                         iter, eval, rest, f, norm2(wg))
             end
-            if task == OPK_TASK_FINAL_X
+            if task == TASK_FINAL_X
                 return x
             end
-        elseif task == OPK_TASK_WARNING
+        elseif task == TASK_WARNING
             @printf("some warnings...\n")
             return x
-        elseif task == OPK_TASK_ERROR
+        elseif task == TASK_ERROR
             @printf("some errors...\n")
             return nothing
         else
