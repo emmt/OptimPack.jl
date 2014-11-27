@@ -39,7 +39,7 @@ value.
 The solution `x` can be computed by one of the implemented nonlinear
 conjugate gradient methods with:
 ```julia
-x = OptimPack.nlcg(fg!, x0, method)
+x = nlcg(fg!, x0, method)
 ```
 where `x0` gives the initial value of the variables (as well as the data
 type and dimensions of the solution).  `x0` is a Julia dense array with any
@@ -123,26 +123,28 @@ specify other values for these parameters than the default ones which are
 The keyword `lnsrch` can be used to specify another line search method than
 the default one:
 ```julia
-x = OptimPack.nlcg(fg!, x0, method, lnsrch=ls)
+x = nlcg(fg!, x0, method, lnsrch=ls)
 ```
 where `ls` is one of the implemented line search methods:
 ```julia
-ls = OptimPack.ArmijoLineSearch(ftol)
-ls = OptimPack.MoreThuenteLineSearch(ftol, gtol, xtol)
-ls = OptimPack.NonmonotoneLineSearch(m, ftol=..., amin=..., amax=...)
+ls = OptimPack.ArmijoLineSearch(ftol=...)
+ls = OptimPack.MoreThuenteLineSearch(ftol=..., gtol=..., xtol=...)
+ls = OptimPack.NonmonotoneLineSearch(mem=..., ftol=..., amin=..., amax=...)
 ```
 with `ftol` the tolerance on the function reduction for the Armijo or first
 Wolfe condition, `gtol` the tolerance on the gradient for the second
 (strong) Wolfe condition, `xtol` the relative precision for the step length
-(set to the machine relative precision by default) and `m` the number of
-previous steps to remember for the nonmonotone line search.  By default,
-the values used in SPG2 are used for the nonmonotone line search: `m = 10`,
+(set to the machine relative precision by default), `mem` the number of
+previous steps to remember for the nonmonotone line search, keywords `amin`
+and `amax` set the lower steplength bound and the upper steplength relative
+bound to trigger bissection in nonmonotone line search.  By default, the
+values used in SPG2 are used for the nonmonotone line search: `mem = 10`,
 `ftol = 1E-4`, `amin = 0.1` and `amax = 0.9`.
 
 The line search is safeguarded by imposing lower and upper bounds on the
 step.  In `nlcg` and `vmlm`, keywords `stpmin` and `stpmax` can be used to
-specify the step bounds relatively to the size of the first step (for each
-line search).  Their default values are: `stpmin = 1E-20` and `stpmax =
+specify the step bounds relatively to the size of the first step for each
+line search.  Their default values are: `stpmin = 1E-20` and `stpmax =
 1E+20`; if specified, they must be such that: `0 <= stpmin < stpmax`.
 
 
@@ -151,15 +153,14 @@ line search).  Their default values are: `stpmin = 1E-20` and `stpmax =
 Alternatively, the solution `x` can be computed by a limited memory version
 of the variable metric method (implementing BFGS updates) with:
 ```julia
-x = OptimPack.vmlm(fg!, x0, m)
+x = vmlm(fg!, x0, m)
 ```
 where the optional argument `m` is the number of previous steps to memorize
-(by default `m=3`) while other arguments have the same meaning as for
-`OptimPack.nlcg`.
+(by default `m = 3`) while other arguments have the same meaning as for
+`nlcg`.
 
 Keywords `verb`, `gatol`, `grtol`, `lnsrch`, `stpmin` and `stpmax` can also
-be specified for `OptimPack.vmlm` and have the same meaning as for
-`OptimPack.nlcg`.
+be specified for `vmlm` and have the same meaning as for `nlcg`.
 
 In addition to these keywords, you can specify how to scale the inverse
 Hessian in variable metric method via the `scaling` keyword:
