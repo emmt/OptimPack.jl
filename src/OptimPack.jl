@@ -289,7 +289,7 @@ abstract LineSearch <: Object
 type ArmijoLineSearch <: LineSearch
     handle::Ptr{Void}
     ftol::Cdouble
-    function ArmijoLineSearch(ftol::Real=1e-4)
+    function ArmijoLineSearch(;ftol::Real=1e-4)
         assert(0.0 <= ftol < 1.0)
         ptr = ccall((:opk_lnsrch_new_backtrack, opklib), Ptr{Void},
                 (Cdouble,), ftol)
@@ -305,8 +305,8 @@ type MoreThuenteLineSearch <: LineSearch
     ftol::Cdouble
     gtol::Cdouble
     xtol::Cdouble
-    function MoreThuenteLineSearch(ftol::Real=1e-4, gtol::Real=0.9,
-                                            xtol::Real=eps(Cdouble))
+    function MoreThuenteLineSearch(;ftol::Real=1e-4, gtol::Real=0.1,
+                                   xtol::Real=eps(Cdouble))
         assert(0.0 <= ftol < gtol < 1.0)
         assert(0.0 <= xtol < 1.0)
         ptr = ccall((:opk_lnsrch_new_csrch, opklib), Ptr{Void},
@@ -320,19 +320,19 @@ end
 
 type NonmonotoneLineSearch <: LineSearch
     handle::Ptr{Void}
-    m::Int
+    mem::Int
     ftol::Cdouble
     amin::Cdouble
     amax::Cdouble
-    function NonmonotoneLineSearch(m::Integer=10; ftol::Real=1e-4,
-                                            amin::Real=0.1, amax::Real=0.9)
-        assert(m >= 1)
+    function NonmonotoneLineSearch(;mem::Integer=10, ftol::Real=1e-4,
+                                   amin::Real=0.1, amax::Real=0.9)
+        assert(mem >= 1)
         assert(0.0 <= ftol < 1.0)
         assert(0.0 < amin < amax < 1.0)
         ptr = ccall((:opk_lnsrch_new_nonmonotone, opklib), Ptr{Void},
-                (Cptrdiff_t, Cdouble, Cdouble, Cdouble), m, ftol, amin, amax)
+                (Cptrdiff_t, Cdouble, Cdouble, Cdouble), mem, ftol, amin, amax)
         systemerror("failed to create nonmonotone linesearch", ptr == C_NULL)
-        obj = new(ptr, m, ftol, amin, amax)
+        obj = new(ptr, mem, ftol, amin, amax)
         finalizer(obj, obj -> __drop_object__(obj.handle))
         return obj
     end
@@ -434,8 +434,8 @@ type NLCG <: Optimizer
     method::Cuint
     lnsrch::LineSearch
     function NLCG(space::VectorSpace,
-                           method::Integer=NLCG_DEFAULT;
-                           lnsrch::LineSearch=MoreThuenteLineSearch(1E-4, 0.1))
+                  method::Integer=NLCG_DEFAULT;
+                  lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.1))
         ptr = ccall((:opk_new_nlcg_optimizer_with_line_search, opklib), Ptr{Void},
                 (Ptr{Void}, Cuint, Ptr{Void}), space.handle, method, lnsrch.handle)
         systemerror("failed to create optimizer", ptr == C_NULL)
@@ -514,7 +514,7 @@ type VMLM <: Optimizer
     m::Cptrdiff_t
     lnsrch::LineSearch
     function VMLM(space::VectorSpace, m::Integer=3;
-                           lnsrch::LineSearch=MoreThuenteLineSearch(1E-4, 0.9))
+                  lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.9))
         if m < 1
             error("illegal number of memorized steps")
         end
@@ -533,7 +533,7 @@ type VMLM <: Optimizer
 end
 
 start!(opt::VMLM) = ccall((:opk_start_vmlm, opklib), Cint,
-                                   (Ptr{Void},), opt.handle)
+                          (Ptr{Void},), opt.handle)
 
 function iterate!(opt::VMLM, x::Vector, f::Real, g::Vector)
     ccall((:opk_iterate_vmlm, opklib), Cint,
@@ -542,21 +542,21 @@ function iterate!(opt::VMLM, x::Vector, f::Real, g::Vector)
 end
 
 get_task(opt::VMLM) = ccall((:opk_get_vmlm_task, opklib),
-                                     Cint, (Ptr{Void},), opt.handle)
+                            Cint, (Ptr{Void},), opt.handle)
 iterations(opt::VMLM) = ccall((:opk_get_vmlm_iterations, opklib),
-                                       Cptrdiff_t, (Ptr{Void},), opt.handle)
+                              Cptrdiff_t, (Ptr{Void},), opt.handle)
 evaluations(opt::VMLM) = ccall((:opk_get_vmlm_evaluations, opklib),
-                                        Cptrdiff_t, (Ptr{Void},), opt.handle)
+                               Cptrdiff_t, (Ptr{Void},), opt.handle)
 restarts(opt::VMLM) = ccall((:opk_get_vmlm_restarts, opklib),
-                                     Cptrdiff_t, (Ptr{Void},), opt.handle)
+                            Cptrdiff_t, (Ptr{Void},), opt.handle)
 get_gatol(opt::VMLM) = ccall((:opk_get_vmlm_gatol, opklib),
-                                      Cdouble, (Ptr{Void},), opt.handle)
+                             Cdouble, (Ptr{Void},), opt.handle)
 get_grtol(opt::VMLM) = ccall((:opk_get_vmlm_grtol, opklib),
-                                      Cdouble, (Ptr{Void},), opt.handle)
+                             Cdouble, (Ptr{Void},), opt.handle)
 get_stpmin(opt::VMLM) = ccall((:opk_get_vmlm_stpmin, opklib),
-                                       Cdouble, (Ptr{Void},), opt.handle)
+                              Cdouble, (Ptr{Void},), opt.handle)
 get_stpmax(opt::VMLM) = ccall((:opk_get_vmlm_stpmax, opklib),
-                                       Cdouble, (Ptr{Void},), opt.handle)
+                              Cdouble, (Ptr{Void},), opt.handle)
 function set_gatol!(opt::VMLM, gatol::Real)
     if ccall((:opk_set_vmlm_gatol, opklib),
              Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
@@ -629,7 +629,7 @@ function nlcg{T,N}(fg!::Function, x0::Array{T,N},
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
 
     if lnsrch == nothing
-        lnsrch = MoreThuenteLineSearch()
+        lnsrch = MoreThuenteLineSearch(ftol=1E-4, gtol=0.1)
     end
 
     # Allocate workspaces
@@ -685,7 +685,7 @@ end
 function vmlm{T,N}(fg!::Function, x0::Array{T,N},
                    m::Integer=3;
                    scaling::Integer=SCALING_OREN_SPEDICATO,
-                   lnsrch::LineSearch=MoreThuenteLineSearch(),
+                   lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.9),
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
                    verb::Bool=false, debug::Bool=false)
