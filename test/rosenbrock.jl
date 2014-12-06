@@ -32,28 +32,28 @@ end
 x0 = Array(Float64, 20)
 rosenbrock_init!(x0)
 println("Testing NLCG in double precision")
-x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
+x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true);
 #println(x1)
 println("\nTesting VMLM in double precision with Oren & Spedicato scaling")
 x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_OREN_SPEDICATO)
+                    scaling=OptimPack.SCALING_OREN_SPEDICATO);
 #println(x2)
 println("\nTesting VMLM in double precision with Barzilai & Borwein scaling")
 x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
+                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN);
 #println(x3)
 
 x0 = Array(Float32, 20)
 rosenbrock_init!(x0)
 println("\nTesting NLCG in single precision")
-x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
+x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true);
 #println(x1)
 println("\nTesting VMLM in single precision with Oren & Spedicato scaling")
 x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_OREN_SPEDICATO)
+                    scaling=OptimPack.SCALING_OREN_SPEDICATO);
 #println(x2)
 println("\nTesting VMLM in single precision with Barzilai & Borwein scaling")
 x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
+                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN);
 #println(x3)
-
+nothing
