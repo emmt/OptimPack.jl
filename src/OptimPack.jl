@@ -1,6 +1,38 @@
+#
+# OptimPack.jl --
+#
+# Optimization for Julia.
+#
+# ----------------------------------------------------------------------------
+#
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License:
+#
+# Copyright (C) 2014, Éric Thiébaut.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to
+# deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+# IN THE SOFTWARE.
+#
+# ----------------------------------------------------------------------------
+
 module OptimPack
 
-export nlcg, vmlm
+export nlcg, vmlm, spg2
 
 # Functions must be imported to be extended with new methods.
 import Base.size
@@ -199,24 +231,24 @@ function norminf(vec::Vector)
     ccall((:opk_vnorminf,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function zero(vec::Vector)
+function zero!(vec::Vector)
     ccall((:opk_vzero,opklib), Void, (Ptr{Void},), vec.handle)
 end
 
-function fill(vec::Vector, val::Real)
+function fill!(vec::Vector, val::Real)
     ccall((:opk_vfill, opklib), Void, (Ptr{Void},Cdouble), vec.handle, val)
 end
 
-function copy(dst::Vector, src::Vector)
+function copy!(dst::Vector, src::Vector)
     ccall((:opk_vcopy,opklib), Void, (Ptr{Void},Ptr{Void}), dst.handle, src.handle)
 end
 
-function scale(dst::Vector, alpha::Real, src::Vector)
+function scale!(dst::Vector, alpha::Real, src::Vector)
     ccall((:opk_vscale,opklib), Void, (Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, src.handle)
 end
 
-function swap(x::Vector, y::Vector)
+function swap!(x::Vector, y::Vector)
     ccall((:opk_vswap,opklib), Void, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
 end
 
@@ -224,17 +256,17 @@ function dot(x::Vector, y::Vector)
     ccall((:opk_vdot,opklib), Cdouble, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
 end
 
-function axpby(dst::Vector,
-               alpha::Real, x::Vector,
-               beta::Real,  y::Vector)
+function axpby!(dst::Vector,
+                alpha::Real, x::Vector,
+                beta::Real,  y::Vector)
     ccall((:opk_vaxpby,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle)
 end
 
-function axpbypcz(dst::Vector,
-                  alpha::Real, x::Vector,
-                  beta::Real,  y::Vector,
+function axpbypcz!(dst::Vector,
+                   alpha::Real, x::Vector,
+                   beta::Real,  y::Vector,
                   gamma::Real, z::Vector)
     ccall((:opk_vaxpbypcz,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
@@ -620,7 +652,7 @@ end
 #   `x0` are the initial variables, they are left unchanged, they must be a
 #   single or double precision floating point array.
 #
-function nlcg{T,N}(fg!::Function, x0::Array{T,N},
+function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
                    method::Integer=NLCG_DEFAULT;
                    lnsrch::Union(Nothing,LineSearch)=nothing,
                    gatol::Real=0.0, grtol::Real=1E-6,
@@ -682,8 +714,7 @@ function nlcg{T,N}(fg!::Function, x0::Array{T,N},
     end
 end
 
-function vmlm{T,N}(fg!::Function, x0::Array{T,N},
-                   m::Integer=3;
+function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
                    scaling::Integer=SCALING_OREN_SPEDICATO,
                    lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.9),
                    gatol::Real=0.0, grtol::Real=1E-6,
