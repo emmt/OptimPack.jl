@@ -42,7 +42,11 @@ import Base.ndims
 import Base.copy
 import Base.dot
 
-const opklib = "libOptimPack2"
+if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+    include("../deps/deps.jl")
+else
+    error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
+end
 
 cint(i::Integer) = convert(Cint, i)
 cuint(i::Integer) = convert(Cuint, i)

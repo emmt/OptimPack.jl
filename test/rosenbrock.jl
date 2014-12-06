@@ -1,4 +1,5 @@
 using OptimPack
+using Base.Test
 
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
   x0[1:2:end] = -1.2
@@ -27,33 +28,26 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   lbfgs(rosenbrock_fg!, x0, m, verb=true)
 end
 
-#space = OptimPack.ShapedVectorSpace(Float64, 10)
+# Run tests in double and single precisions.
+for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-x0 = Array(Float64, 20)
-rosenbrock_init!(x0)
-println("Testing NLCG in double precision")
-x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true);
-#println(x1)
-println("\nTesting VMLM in double precision with Oren & Spedicato scaling")
-x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_OREN_SPEDICATO);
-#println(x2)
-println("\nTesting VMLM in double precision with Barzilai & Borwein scaling")
-x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN);
-#println(x3)
+    x0 = Array(T, 20)
+    rosenbrock_init!(x0)
 
-x0 = Array(Float32, 20)
-rosenbrock_init!(x0)
-println("\nTesting NLCG in single precision")
-x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true);
-#println(x1)
-println("\nTesting VMLM in single precision with Oren & Spedicato scaling")
-x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_OREN_SPEDICATO);
-#println(x2)
-println("\nTesting VMLM in single precision with Barzilai & Borwein scaling")
-x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
-                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN);
-#println(x3)
+    @printf("\nTesting NLCG in %s precision\n", prec)
+    x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
+    @test_approx_eq_eps x1 ones(T,20) 1e-4
+
+    @printf("\nTesting VMLM in %s precision with Oren & Spedicato scaling\n", prec)
+    x2 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
+                        scaling=OptimPack.SCALING_OREN_SPEDICATO)
+    @test_approx_eq_eps x2 ones(T,20) 1e-4
+
+    @printf("\nTesting VMLM in %s precision with Barzilai & Borwein scaling\n", prec)
+    x3 = OptimPack.vmlm(rosenbrock_fg!, x0, verb=true,
+                    scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
+    @test_approx_eq_eps x3 ones(T,20) 1e-4
+
+end
+
 nothing
