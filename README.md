@@ -11,6 +11,14 @@ large scale optimization problems.
   function/type/constant names and API are not yet satisfying, thus
   changes are expected.
 
+## Installation
+
+From a Julia session, type the following commands:
+```julia
+Pkg.clone("https://github.com/emmt/OptimPack.jl.git")
+Pkg.build("OptimPack")
+```
+
 
 ## Unconstrained Minimization of a Nonlinear Smooth Function
 
