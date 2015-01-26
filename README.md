@@ -110,7 +110,7 @@ const OptimPack.NLCG_DEFAULT  = (OptimPack.NLCG_HAGER_ZHANG | OptimPack.NLCG_SHA
 ```
 
 
-### Convergence Criteria
+### Stopping Criteria
 
 The nonlinear conjugate gradient methods are iterative algorithms, the
 convergence is assumed to be achieved when the Euclidean norm of the
@@ -124,6 +124,14 @@ solution `x`, `||g(x0)||` is the Euclidean norm of the initial gradient at
 threshold parameter.  The keywords `gatol` and `grtol` can be used to
 specify other values for these parameters than the default ones which are
 `gatol = 0.0` and `grtol = 1E-6`.
+
+It may be desirable to limit the time spent by the algorithm.  To that end,
+the keywords `maxiter` and `maxeval` are available to specify the maximum
+number of iterations and evaluations of the algorithm respectively.  Their
+default values is `-1` which means that there is no restrictions.  For now,
+the algorithm can only be safely stopped at an acceptable iterate, thus the
+maximum number of allowed function evaluations may slightly exceed the
+value of `maxeval`.
 
 
 ### Line Search Settings

@@ -45,6 +45,7 @@ import Base.dot
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
 else
+    #opklib = "libOptimPack2.so"
     error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
 end
 
@@ -661,6 +662,7 @@ function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
                    lnsrch::Union(Nothing,LineSearch)=nothing,
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
+                   maxeval::Integer=-1, maxiter=::Integer=-1,
                    verb::Bool=false, debug::Bool=false)
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
 
@@ -704,6 +706,14 @@ function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
             if task == TASK_FINAL_X
                 return x
             end
+            if maxiter >= 0 && iter >= maxiter
+                warn("exceeding maximum number of iterations ($maxiter)")
+                return x
+            end
+            if maxeval >= 0 && eval >= maxeval
+                warn("exceeding maximum number of evaluations ($eval >= $maxeval)")
+                return x
+            end
         elseif task == TASK_WARNING
             @printf("some warnings...\n")
             return x
@@ -723,6 +733,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
                    lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.9),
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
+                   maxeval::Integer=-1, maxiter=::Integer=-1,
                    verb::Bool=false, debug::Bool=false)
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
 
@@ -761,6 +772,14 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
                         iter, eval, rest, f, norm2(wg))
             end
             if task == TASK_FINAL_X
+                return x
+            end
+            if maxiter >= 0 && iter >= maxiter
+                warn("exceeding maximum number of iterations ($maxiter)")
+                return x
+            end
+            if maxeval >= 0 && eval >= maxeval
+                warn("exceeding maximum number of evaluations ($eval >= $maxeval)")
                 return x
             end
         elseif task == TASK_WARNING
