@@ -662,7 +662,7 @@ function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
                    lnsrch::Union(Nothing,LineSearch)=nothing,
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
-                   maxeval::Integer=-1, maxiter=::Integer=-1,
+                   maxeval::Integer=-1, maxiter::Integer=-1,
                    verb::Bool=false, debug::Bool=false)
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
 
@@ -733,7 +733,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
                    lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.9),
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
-                   maxeval::Integer=-1, maxiter=::Integer=-1,
+                   maxeval::Integer=-1, maxiter::Integer=-1,
                    verb::Bool=false, debug::Bool=false)
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
 
