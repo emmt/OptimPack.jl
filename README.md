@@ -128,7 +128,7 @@ specify other values for these parameters than the default ones which are
 It may be desirable to limit the time spent by the algorithm.  To that end,
 the keywords `maxiter` and `maxeval` are available to specify the maximum
 number of iterations and evaluations of the algorithm respectively.  Their
-default values is `-1` which means that there is no restrictions.  For now,
+default values is `-1` which means that there are no restrictions.  For now,
 the algorithm can only be safely stopped at an acceptable iterate, thus the
 maximum number of allowed function evaluations may slightly exceed the
 value of `maxeval`.
