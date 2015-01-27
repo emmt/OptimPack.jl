@@ -691,17 +691,16 @@ function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
         if task == TASK_COMPUTE_FG
             f = fg!(x, g)
         elseif task == TASK_NEW_X || task == TASK_FINAL_X
+            iter = iterations(opt)
+            eval = evaluations(opt)
             if verb
-                iter = iterations(opt)
-                eval = evaluations(opt)
-                rest = restarts(opt)
                 if iter == 0
                     @printf("%s\n%s\n",
                             " ITER   EVAL  RESTARTS         F(X)             ||G(X)||",
                             "--------------------------------------------------------")
                 end
                 @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
-                        iter, eval, rest, f, norm2(wg))
+                        iter, eval, restarts(opt), f, norm2(wg))
             end
             if task == TASK_FINAL_X
                 return x
@@ -759,17 +758,16 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
         if task == TASK_COMPUTE_FG
             f = fg!(x, g)
         elseif task == TASK_NEW_X || task == TASK_FINAL_X
+            iter = iterations(opt)
+            eval = evaluations(opt)
             if verb
-                iter = iterations(opt)
-                eval = evaluations(opt)
-                rest = restarts(opt)
                 if iter == 0
                     @printf("%s\n%s\n",
                             " ITER   EVAL  RESTARTS         F(X)             ||G(X)||",
                             "--------------------------------------------------------")
                 end
                 @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
-                        iter, eval, rest, f, norm2(wg))
+                        iter, eval, restarts(opt), f, norm2(wg))
             end
             if task == TASK_FINAL_X
                 return x
