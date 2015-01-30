@@ -45,7 +45,6 @@ import Base.dot
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
 else
-    #opklib = "libOptimPack2.so"
     error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
 end
 
@@ -435,10 +434,11 @@ get_xtol(ls::MoreThuenteLineSearch) = ls.xtol
 const TASK_ERROR       = cint(-1) # An error has ocurred.
 const TASK_PROJECT_X   = cint( 0) # Caller must project variables x.
 const TASK_COMPUTE_FG  = cint( 1) # Caller must compute f(x) and g(x).
-const TASK_FREE_VARS   = cint( 2) # Caller must update the subspace of free variables.
-const TASK_NEW_X       = cint( 3) # A new iterate is available.
-const TASK_FINAL_X     = cint( 4) # Algorithm has converged, solution is available.
-const TASK_WARNING     = cint( 5) # Algorithm terminated with a warning.
+const TASK_PROJECT_D   = cint( 2) # Caller must project the direction d.
+const TASK_FREE_VARS   = cint( 3) # Caller must update the subspace of free variables.
+const TASK_NEW_X       = cint( 4) # A new iterate is available.
+const TASK_FINAL_X     = cint( 5) # Algorithm has converged, solution is available.
+const TASK_WARNING     = cint( 6) # Algorithm terminated with a warning.
 
 abstract Optimizer <: Object
 
