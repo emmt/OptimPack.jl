@@ -1,7 +1,7 @@
 using BinDeps
 
 const version = "2.0.1"
-const unpacked_dir = "OptimPack-$version"
+const unpacked_dir = "optimpack-$version"
 
 @BinDeps.setup
 
