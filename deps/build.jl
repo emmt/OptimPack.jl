@@ -1,6 +1,6 @@
 using BinDeps
 
-const version = "master"
+const version = "2.0.1"
 const unpacked_dir = "OptimPack-$version"
 
 @BinDeps.setup
@@ -8,7 +8,7 @@ const unpacked_dir = "OptimPack-$version"
 optimpack = library_dependency("libopk")
 
 provides(Sources,
-         URI("https://github.com/emmt/OptimPack/archive/$version.zip"),
+         URI("https://github.com/emmt/OptimPack/releases/download/v$version/optimpack-$version.tar.gz"),
          optimpack,
          unpacked_dir=unpacked_dir)
 
@@ -27,7 +27,6 @@ provides(SimpleBuild,
                  ChangeDirectory(srcdir)
                  FileRule(destlib,
                           @build_steps begin
-                              `./autogen.sh`
                               `./configure --enable-shared --disable-static --prefix="$prefix"`
                               `make`
                               `make install`
