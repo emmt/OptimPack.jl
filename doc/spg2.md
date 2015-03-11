@@ -62,11 +62,13 @@ The result `ws` has the following members:
 * `ws.iter`   - The number of iterations.
 * `ws.fcnt`   - The number of function (and gradient) evaluations.
 * `ws.pcnt`   - The number of projections.
-* `ws.status` - Termination parameter:
-  * `OptimPack.SPG2_CONVERGENCE_WITH_INFNORM` = convergence with projected gradient infinite-norm,
-  * `OptimPack.SPG2_CONVERGENCE_WITH_TWONORM` = convergence with projected gradient Euclidean norm,
-  * `OptimPack.SPG2_TOO_MANY_ITERATIONS` = too many iterations,
-  * `OptimPack.SPG2_TOO_MANY_EVALUATIONS` = too many function evaluations.
+* `ws.status` - Termination status (as a symbolic name):
+  * `:CONVERGENCE_WITH_INFNORM` = convergence with projected gradient
+    infinite-norm,
+  * `:CONVERGENCE_WITH_TWONORM` = convergence with projected gradient
+    Euclidean norm,
+  * `:TOO_MANY_ITERATIONS` = too many iterations,
+  * `:TOO_MANY_EVALUATIONS` = too many function evaluations.
 
 Note that the final iteration may not be the best one.
 

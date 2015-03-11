@@ -20,31 +20,7 @@
 #
 # Copyright (C) 2014: Éric Thiébaut.
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to
-# deal in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-# IN THE SOFTWARE.
-#
 # ----------------------------------------------------------------------------
-
-const SPG2_WORK_IN_PROGRESS         = cint( 0)
-const SPG2_CONVERGENCE_WITH_INFNORM = cint( 1)
-const SPG2_CONVERGENCE_WITH_TWONORM = cint( 2)
-const SPG2_TOO_MANY_ITERATIONS      = cint(-1)
-const SPG2_TOO_MANY_EVALUATIONS     = cint(-2)
 
 type SpgResult{T,N}
     x::DenseArray{T,N}
@@ -56,8 +32,8 @@ type SpgResult{T,N}
     fcnt::Int
     pcnt::Int
     iter::Int
-    status::Cint
-    SpgResult(x::DenseArray{T,N},xbest::DenseArray{T,N}) = new(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, SPG2_WORK_IN_PROGRESS)
+    status::Symbol
+    SpgResult(x::DenseArray{T,N}, xbest::DenseArray{T,N}) = new(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :WORK_IN_PROGRESS)
 end
 
 function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Integer;
@@ -130,22 +106,22 @@ function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Intege
         # Test stopping criteria.
         if ws.pginfn <= eps1
             # Gradient infinite-norm stopping criterion satisfied, stop.
-            ws.status = SPG2_CONVERGENCE_WITH_INFNORM
+            ws.status = :CONVERGENCE_WITH_INFNORM
             return ws
         end
         if ws.pgtwon <= eps2
             # Gradient 2-norm stopping criterion satisfied, stop.
-            ws.status = SPG2_CONVERGENCE_WITH_TWONORM
+            ws.status = :CONVERGENCE_WITH_TWONORM
             return ws
         end
         if maxit >= 0 && ws.iter >= maxit
             # Maximum number of iterations exceeded, stop.
-            ws.status = SPG2_TOO_MANY_ITERATIONS
+            ws.status = :TOO_MANY_ITERATIONS
             return ws
         end
         if maxfc >= 0 && ws.fcnt >= maxfc
             # Maximum number of function evaluations exceeded, stop.
-            ws.status = SPG2_TOO_MANY_EVALUATIONS
+            ws.status = :TOO_MANY_EVALUATIONS
             return ws
         end
 
@@ -211,7 +187,7 @@ function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Intege
             end
             if maxfc >= 0 && ws.fcnt >= maxfc
                 # Maximum number of function evaluations exceeded, stop.
-                ws.status = SPG2_TOO_MANY_EVALUATIONS
+                ws.status = :TOO_MANY_EVALUATIONS
                 return ws
             end
 
@@ -228,7 +204,7 @@ function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Intege
             axpby!(_x, 1.0, _x0, stp, _d)
         end
 
-        if ws.status != SPG2_WORK_IN_PROGRESS
+        if ws.status != :WORK_IN_PROGRESS
             # The number of function evaluations was exceeded inside the line
             # search.
             return ws
