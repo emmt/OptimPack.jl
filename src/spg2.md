@@ -48,15 +48,15 @@ The following keywords are available:
 * `printer` - If specified, a function to print or display some information
            at each iteration.  This subroutine will be called with a single
            argument which is a the same as the returned result except that
-           it member `x` is set with the variables at the current iteration
+           its member `x` is set with the variables at the current iteration
            instead of the final one.
 
 The result `ws` has the following members:
 
 * `ws.x`      - The current or final variables.
 * `ws.f`      - The function value at `x`.
-* `ws.pginfn` - The infinite norm of the gradient at `x`.
-* `ws.pgtwon` - The Euclidean norm of the gradient at `x`.
+* `ws.pginfn` - The infinite norm of the projected gradient at `x`.
+* `ws.pgtwon` - The Euclidean norm of the projected gradient at `x`.
 * `ws.xbest`  - The approximation to the local minimizer.
 * `ws.fbest`  - The function value at `xbest`.
 * `ws.iter`   - The number of iterations.
@@ -71,7 +71,7 @@ The result `ws` has the following members:
 Note that the final iteration may not be the best one.
 
 
-# REFERENCES:
+### REFERENCES:
 
 1. E. G. Birgin, J. M. Martinez, and M. Raydan, "*Nonmonotone spectral
    projected gradient methods on convex sets*", SIAM Journal on
