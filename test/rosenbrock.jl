@@ -4,6 +4,7 @@ using Base.Test
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
   x0[1:2:end] = -1.2
   x0[2:2:end] =  1.0
+  return nothing
 end
 
 function rosenbrock_fg!{T<:Real}(x::Array{T,1}, gx::Array{T,1})
