@@ -6,10 +6,6 @@ OptimPack.jl is the Julia interface to
 [OptimPack](https://github.com/emmt/OptimPack), a library for solving
 large scale optimization problems.
 
-**Warning:** Although this package is already usable to solve real
-  (and large!) optimization problems, it is a *work in progress*.  The
-  function/type/constant names and API are not yet satisfying, thus
-  changes are expected.
 
 ## Installation
 
@@ -188,6 +184,13 @@ scaling = OptimPack.SCALING_BARZILAI_BORWEIN # to scale by: gamma2 = <s,s>/<s,y>
 ```
 where `<s,y>` denotes the inner product between the previous step `s` and
 gradient difference `y`.
+
+
+## Spectral Projected Gradient Method
+
+The spectral projected gradient (SPG2) method of Birgin, Martinez & Raydan
+can be used for solving large constrained optimization problems.  The usage
+of the SPG2 method is documented [here](doc/spg2.md).
 
 
 ## Low-level Interface
