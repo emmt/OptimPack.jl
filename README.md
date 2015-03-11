@@ -11,9 +11,8 @@ large scale optimization problems.
 
 From a Julia session, type the following commands:
 ```julia
-Pkg.add("BinDeps")
-Pkg.clone("https://github.com/emmt/OptimPack.jl.git")
-Pkg.build("OptimPack")
+Pkg.update()
+Pkg.add("OptimPack")
 ```
 
 
