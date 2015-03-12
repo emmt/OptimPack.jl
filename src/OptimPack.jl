@@ -323,7 +323,7 @@ type MoreThuenteLineSearch <: LineSearch
     ftol::Cdouble
     gtol::Cdouble
     xtol::Cdouble
-    function MoreThuenteLineSearch(;ftol::Real=1e-4, gtol::Real=0.1,
+    function MoreThuenteLineSearch(;ftol::Real=1e-4, gtol::Real=0.9,
                                    xtol::Real=eps(Cdouble))
         assert(0.0 <= ftol < gtol < 1.0)
         assert(0.0 <= xtol < 1.0)
@@ -453,8 +453,8 @@ type NLCG <: Optimizer
     method::Cuint
     lnsrch::LineSearch
     function NLCG(space::VectorSpace,
-                  method::Integer=NLCG_DEFAULT;
-                  lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.1))
+                  method::Integer,
+                  lnsrch::LineSearch)
         ptr = ccall((:opk_new_nlcg_optimizer_with_line_search, opklib), Ptr{Void},
                 (Ptr{Void}, Cuint, Ptr{Void}), space.handle, method, lnsrch.handle)
         systemerror("failed to create optimizer", ptr == C_NULL)
@@ -532,8 +532,9 @@ type VMLM <: Optimizer
     vspace::VectorSpace
     m::Cptrdiff_t
     lnsrch::LineSearch
-    function VMLM(space::VectorSpace, m::Integer=3;
-                  lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.9))
+    function VMLM(space::VectorSpace,
+                  m::Integer,
+                  lnsrch::LineSearch)
         if m < 1
             error("illegal number of memorized steps")
         end
@@ -641,16 +642,12 @@ end
 #
 function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
                    method::Integer=NLCG_DEFAULT;
-                   lnsrch::Union(Nothing,LineSearch)=nothing,
+                   lnsrch::LineSearch=MoreThuenteLineSearch(ftol=1E-4, gtol=0.1),
                    gatol::Real=0.0, grtol::Real=1E-6,
                    stpmin::Real=1E-20, stpmax::Real=1E+20,
                    maxeval::Integer=-1, maxiter::Integer=-1,
                    verb::Bool=false, debug::Bool=false)
     #assert(T == Type{Cdouble} || T == Type{Cfloat})
-
-    if lnsrch == nothing
-        lnsrch = MoreThuenteLineSearch(ftol=1E-4, gtol=0.1)
-    end
 
     # Allocate workspaces
     dims = size(x0)
@@ -659,7 +656,7 @@ function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
     g = Array(T, dims)
     wx = wrap(space, x)
     wg = wrap(space, g)
-    opt = NLCG(space, method; lnsrch=lnsrch)
+    opt = NLCG(space, method, lnsrch)
     set_gatol!(opt, gatol)
     set_grtol!(opt, grtol)
     set_stpmin_and_stpmax!(opt, stpmin, stpmax)
@@ -725,7 +722,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
     g = Array(T, dims)
     wx = wrap(space, x)
     wg = wrap(space, g)
-    opt = VMLM(space, m)
+    opt = VMLM(space, m, lnsrch)
     set_scaling!(opt, scaling)
     set_gatol!(opt, gatol)
     set_grtol!(opt, grtol)
