@@ -59,12 +59,14 @@ __init__()
 #------------------------------------------------------------------------------
 # OBJECT MANAGEMENT
 #
-# All concrete types derived from the abstract Object type have a
-# `handle` member which stores the address of the OptimPack object.
+# All concrete types derived from the abstract Object type have a `handle`
+# member which stores the address of the OptimPack object.  To avoid conflicts
+# with Julia `Vector` type, an OptimPack vector corresponds to the type
+# `Variable`.
 abstract Object
-abstract VectorSpace <: Object
-abstract Vector      <: Object
-abstract LineSearch  <: Object
+abstract VariableSpace <: Object
+abstract Variable      <: Object
+abstract LineSearch    <: Object
 
 function references(obj::Object)
     ccall((:opk_get_object_references, opklib), Cptrdiff_t, (Ptr{Void},), obj.handle)
@@ -87,7 +89,7 @@ end
 # VECTOR SPACES
 #
 
-type DenseVectorSpace{T,N} <: VectorSpace
+type DenseVariableSpace{T,N} <: VariableSpace
     handle::Ptr{Void}
     eltype::Type{T}
     size::NTuple{N,Int}
@@ -95,13 +97,13 @@ type DenseVectorSpace{T,N} <: VectorSpace
 end
 
 # Extend basic functions for arrays.
-length(vsp::DenseVectorSpace) = vsp.length
-eltype(vsp::DenseVectorSpace) = vsp.eltype
-size(vsp::DenseVectorSpace) = vsp.size
-size(vsp::DenseVectorSpace, n::Integer) = vsp.size[n]
-ndims(vsp::DenseVectorSpace) = length(vsp.size)
+length(vsp::DenseVariableSpace) = vsp.length
+eltype(vsp::DenseVariableSpace) = vsp.eltype
+size(vsp::DenseVariableSpace) = vsp.size
+size(vsp::DenseVariableSpace, n::Integer) = vsp.size[n]
+ndims(vsp::DenseVariableSpace) = length(vsp.size)
 
-DenseVectorSpace(T::Union(Type{Cfloat},Type{Cdouble}), dims::Int...) = DenseVectorSpace(T, dims)
+DenseVariableSpace(T::Union(Type{Cfloat},Type{Cdouble}), dims::Int...) = DenseVariableSpace(T, dims)
 
 function checkdims{N}(dims::NTuple{N,Int})
     number::Int = 1
@@ -114,31 +116,31 @@ function checkdims{N}(dims::NTuple{N,Int})
     return number
 end
 
-function DenseVectorSpace{N}(::Type{Cfloat}, dims::NTuple{N,Int})
+function DenseVariableSpace{N}(::Type{Cfloat}, dims::NTuple{N,Int})
     length::Int = checkdims(dims)
     ptr = ccall((:opk_new_simple_float_vector_space, opklib),
                 Ptr{Void}, (Cptrdiff_t,), length)
     systemerror("failed to create vector space", ptr == C_NULL)
-    obj = DenseVectorSpace{Cfloat,N}(ptr, Cfloat, dims, length)
+    obj = DenseVariableSpace{Cfloat,N}(ptr, Cfloat, dims, length)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function DenseVectorSpace{N}(::Type{Cdouble}, dims::NTuple{N,Int})
+function DenseVariableSpace{N}(::Type{Cdouble}, dims::NTuple{N,Int})
     length::Int = checkdims(dims)
     ptr = ccall((:opk_new_simple_double_vector_space, opklib),
                 Ptr{Void}, (Cptrdiff_t,), length)
     systemerror("failed to create vector space", ptr == C_NULL)
-    obj = DenseVectorSpace{Cdouble,N}(ptr, Cdouble, dims, length)
+    obj = DenseVariableSpace{Cdouble,N}(ptr, Cdouble, dims, length)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
 # Note: There are no needs to register a reference for the owner of a
 # vector (it already owns one internally).
-type DenseVector{T<:Union(Cfloat,Cdouble),N} <: Vector
+type DenseVector{T<:Union(Cfloat,Cdouble),N} <: Variable
     handle::Ptr{Void}
-    owner::DenseVectorSpace{T,N}
+    owner::DenseVariableSpace{T,N}
     array::Union(Array,Nothing)
 end
 
@@ -150,7 +152,7 @@ ndims(v::DenseVector) = ndims(v.owner)
 
 # FIXME: add means to wrap a Julia array around this or (better?, simpler?)
 #        just use allocate a Julia array and wrap a vector around it?
-function create{T<:Union(Cfloat,Cdouble),N<:Integer}(vspace::DenseVectorSpace{T,N})
+function create{T<:Union(Cfloat,Cdouble),N<:Integer}(vspace::DenseVariableSpace{T,N})
     ptr = ccall((:opk_vcreate, opklib), Ptr{Void}, (Ptr{Void},), vspace.handle)
     systemerror("failed to create vector", ptr == C_NULL)
     obj = DenseVector{T,N}(ptr, vspace, nothing)
@@ -158,7 +160,7 @@ function create{T<:Union(Cfloat,Cdouble),N<:Integer}(vspace::DenseVectorSpace{T,
     return obj
 end
 
-function wrap{T<:Cfloat,N}(s::DenseVectorSpace{T,N}, a::DenseArray{T,N})
+function wrap{T<:Cfloat,N}(s::DenseVariableSpace{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(s))
     ptr = ccall((:opk_wrap_simple_float_vector, opklib), Ptr{Void},
                 (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
@@ -180,7 +182,7 @@ function wrap!{T<:Cfloat,N}(v::DenseVector{T,N}, a::DenseArray{T,N})
     return v
 end
 
-function wrap{T<:Cdouble,N}(s::DenseVectorSpace{T,N}, a::DenseArray{T,N})
+function wrap{T<:Cdouble,N}(s::DenseVariableSpace{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(s))
     ptr = ccall((:opk_wrap_simple_double_vector, opklib), Ptr{Void},
                 (Ptr{Void}, Ptr{Cdouble}, Ptr{Void}, Ptr{Void}),
@@ -205,55 +207,55 @@ end
 #------------------------------------------------------------------------------
 # OPERATIONS ON VECTORS
 
-function norm1(vec::Vector)
+function norm1(vec::Variable)
     ccall((:opk_vnorm1,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function norm2(vec::Vector)
+function norm2(vec::Variable)
     ccall((:opk_vnorm2,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function norminf(vec::Vector)
+function norminf(vec::Variable)
     ccall((:opk_vnorminf,opklib), Cdouble, (Ptr{Void},), vec.handle)
 end
 
-function zero!(vec::Vector)
+function zero!(vec::Variable)
     ccall((:opk_vzero,opklib), Void, (Ptr{Void},), vec.handle)
 end
 
-function fill!(vec::Vector, val::Real)
+function fill!(vec::Variable, val::Real)
     ccall((:opk_vfill, opklib), Void, (Ptr{Void},Cdouble), vec.handle, val)
 end
 
-function copy!(dst::Vector, src::Vector)
+function copy!(dst::Variable, src::Variable)
     ccall((:opk_vcopy,opklib), Void, (Ptr{Void},Ptr{Void}), dst.handle, src.handle)
 end
 
-function scale!(dst::Vector, alpha::Real, src::Vector)
+function scale!(dst::Variable, alpha::Real, src::Variable)
     ccall((:opk_vscale,opklib), Void, (Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, src.handle)
 end
 
-function swap!(x::Vector, y::Vector)
+function swap!(x::Variable, y::Variable)
     ccall((:opk_vswap,opklib), Void, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
 end
 
-function dot(x::Vector, y::Vector)
+function dot(x::Variable, y::Variable)
     ccall((:opk_vdot,opklib), Cdouble, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
 end
 
-function axpby!(dst::Vector,
-                alpha::Real, x::Vector,
-                beta::Real,  y::Vector)
+function axpby!(dst::Variable,
+                alpha::Real, x::Variable,
+                beta::Real,  y::Variable)
     ccall((:opk_vaxpby,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle)
 end
 
-function axpbypcz!(dst::Vector,
-                   alpha::Real, x::Vector,
-                   beta::Real,  y::Vector,
-                  gamma::Real, z::Vector)
+function axpbypcz!(dst::Variable,
+                   alpha::Real, x::Variable,
+                   beta::Real,  y::Variable,
+                  gamma::Real, z::Variable)
     ccall((:opk_vaxpbypcz,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle, gamma, y.handle)
@@ -264,8 +266,8 @@ end
 
 if false
     function apply_direct(op::Operator,
-                          dst::Vector,
-                          src::Vector)
+                          dst::Variable,
+                          src::Variable)
         status = ccall((:opk_apply_direct,opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
@@ -276,8 +278,8 @@ if false
     end
 
     function apply_adoint(op::Operator,
-                          dst::Vector,
-                          src::Vector)
+                          dst::Variable,
+                          src::Variable)
         status = ccall((:opk_apply_adjoint,opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
@@ -287,8 +289,8 @@ if false
         nothing
     end
     function apply_inverse(op::Operator,
-                           dst::Vector,
-                           src::Vector)
+                           dst::Variable,
+                           src::Variable)
         status = ccall((:opk_apply_inverse,opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
@@ -449,10 +451,10 @@ const NLCG_DEFAULT  = (NLCG_HAGER_ZHANG | NLCG_SHANNO_PHUA)
 
 type NLCG <: Optimizer
     handle::Ptr{Void}
-    vspace::VectorSpace
+    vspace::VariableSpace
     method::Cuint
     lnsrch::LineSearch
-    function NLCG(space::VectorSpace,
+    function NLCG(space::VariableSpace,
                   method::Integer,
                   lnsrch::LineSearch)
         ptr = ccall((:opk_new_nlcg_optimizer_with_line_search, opklib), Ptr{Void},
@@ -467,7 +469,7 @@ end
 start!(opt::NLCG) = ccall((:opk_start_nlcg, opklib), Cint,
                                    (Ptr{Void},), opt.handle)
 
-function iterate!(opt::NLCG, x::Vector, f::Real, g::Vector)
+function iterate!(opt::NLCG, x::Variable, f::Real, g::Variable)
     ccall((:opk_iterate_nlcg, opklib), Cint,
           (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
           opt.handle, x.handle, f, g.handle)
@@ -529,10 +531,10 @@ end
 
 type VMLM <: Optimizer
     handle::Ptr{Void}
-    vspace::VectorSpace
+    vspace::VariableSpace
     m::Cptrdiff_t
     lnsrch::LineSearch
-    function VMLM(space::VectorSpace,
+    function VMLM(space::VariableSpace,
                   m::Integer,
                   lnsrch::LineSearch)
         if m < 1
@@ -555,7 +557,7 @@ end
 start!(opt::VMLM) = ccall((:opk_start_vmlm, opklib), Cint,
                           (Ptr{Void},), opt.handle)
 
-function iterate!(opt::VMLM, x::Vector, f::Real, g::Vector)
+function iterate!(opt::VMLM, x::Variable, f::Real, g::Variable)
     ccall((:opk_iterate_vmlm, opklib), Cint,
           (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
           opt.handle, x.handle, f, g.handle)
@@ -651,7 +653,7 @@ function nlcg{T,N}(fg!::Function, x0::DenseArray{T,N},
 
     # Allocate workspaces
     dims = size(x0)
-    space = DenseVectorSpace(T, dims)
+    space = DenseVariableSpace(T, dims)
     x = copy(x0)
     g = Array(T, dims)
     wx = wrap(space, x)
@@ -717,7 +719,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
 
     # Allocate workspaces
     dims = size(x0)
-    space = DenseVectorSpace(T, dims)
+    space = DenseVariableSpace(T, dims)
     x = copy(x0)
     g = Array(T, dims)
     wx = wrap(space, x)
