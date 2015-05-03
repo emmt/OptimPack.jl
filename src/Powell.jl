@@ -54,7 +54,7 @@ function cobyla_check(n::Integer, m::Integer, rhobeg::Real, rhoend::Real)
 end
 
 function cobyla!(f::Function, x::Vector{Cdouble},
-                 m::Integer, rhobeg::Real, rhoend::Real,
+                 m::Integer, rhobeg::Real, rhoend::Real;
                  verbose::Integer=0, maxeval::Integer=500)
     n = length(x)
     reason = cobyla_check(n, m, rhobeg, rhoend)
@@ -112,7 +112,8 @@ function cobyla_create(n::Integer, m::Integer,
                  Cptrdiff_t, Cptrdiff_t),
                 n, m, rhobeg, rhoend, verbose, maxeval)
     if ptr == C_NULL
-        reason = (get_errno() == ENOMEM ? "insufficient memory"
+        reason = (errno() == Base.Errno.ENOMEM
+                  ? "insufficient memory"
                   : "unexpected error")
         error(reason)
     end
@@ -231,7 +232,7 @@ function newuoa_check(n::Integer, npt::Integer, rhobeg::Real, rhoend::Real)
 end
 
 function newuoa!(f::Function, x::Vector{Cdouble},
-                 npt::Integer, rhobeg::Real, rhoend::Real,
+                 npt::Integer, rhobeg::Real, rhoend::Real;
                  verbose::Integer=0, maxeval::Integer=500)
     n = length(x)
     reason = newuoa_check(n, npt, rhobeg, rhoend)
@@ -285,7 +286,8 @@ function newuoa_create(n::Integer, npt::Integer,
                  Cptrdiff_t, Cptrdiff_t),
                 n, m, rhobeg, rhoend, verbose, maxeval)
     if ptr == C_NULL
-        reason = (get_errno() == ENOMEM ? "insufficient memory"
+        reason = (errno() == Base.Errno.ENOMEM
+                  ? "insufficient memory"
                   : "unexpected error")
         error(reason)
     end
@@ -336,6 +338,58 @@ end
 function newuoa_get_rho(ctx::NewuoaContext)
     ccall((:newuoa_get_rho, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
 end
+
+function newuoa_test()
+    # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with
+    # NPT = 2N+1.
+    function ftest(x::Vector{Cdouble})
+        n = length(x)
+        np = n + 1
+        y = Array(Cdouble, np, n)
+        for j in 1:n
+            y[1,j] = 1.0
+            y[2,j] = x[j]*2.0 - 1.0
+        end
+        for i in 2:n
+            for j in 1:n
+                y[i+1,j] = y[2,j]*2.0*y[i,j] - y[i-1,j]
+            end
+        end
+        f = 0.0
+        iw = 1
+        for i in 1:np
+            sum = 0.0
+            for j in 1:n
+                sum += y[i,j]
+            end
+            sum /= n
+            if iw > 0
+                sum += 1.0/(i*i - 2*i)
+            end
+            iw = -iw
+            f += sum*sum
+        end
+        return f
+    end
+
+
+    # Run the tests.
+    iprint = 2
+    maxfun = 5000
+    rhoend = 1e-6
+    for n = 2:2:8
+        npt = 2*n + 1
+        x = Array(Cdouble, n)
+        for i in 1:n
+            x[i] = i/(n + 1)
+        end
+        rhobeg = x[1]*0.2
+        @printf("\n\n    Results with N =%2d and NPT =%3d\n", n, npt)
+        newuoa!(ftest, x, npt, rhobeg, rhoend, verbose=2, maxeval=5000)
+    end
+end
+
+
 
 # ----------------------------------------------------------------------------
 
@@ -450,45 +504,6 @@ function bobyqa_test()
         end
     end
 end
-
-# -----------------------------------------------------------------------------
-# ERRNO
-
-get_errno() = cglobal((:errno,:libc), Cint)
-const EPERM     = convert(Cint,  1) # Operation not permitted
-const ENOENT    = convert(Cint,  2) # No such file or directory
-const ESRCH     = convert(Cint,  3) # No such process
-const EINTR     = convert(Cint,  4) # Interrupted system call
-const EIO       = convert(Cint,  5) # I/O error
-const ENXIO     = convert(Cint,  6) # No such device or address
-const E2BIG     = convert(Cint,  7) # Argument list too long
-const ENOEXEC   = convert(Cint,  8) # Exec format error
-const EBADF     = convert(Cint,  9) # Bad file number
-const ECHILD    = convert(Cint, 10) # No child processes
-const EAGAIN    = convert(Cint, 11) # Try again
-const ENOMEM    = convert(Cint, 12) # Out of memory
-const EACCES    = convert(Cint, 13) # Permission denied
-const EFAULT    = convert(Cint, 14) # Bad address
-const ENOTBLK   = convert(Cint, 15) # Block device required
-const EBUSY     = convert(Cint, 16) # Device or resource busy
-const EEXIST    = convert(Cint, 17) # File exists
-const EXDEV     = convert(Cint, 18) # Cross-device link
-const ENODEV    = convert(Cint, 19) # No such device
-const ENOTDIR   = convert(Cint, 20) # Not a directory
-const EISDIR    = convert(Cint, 21) # Is a directory
-const EINVAL    = convert(Cint, 22) # Invalid argument
-const ENFILE    = convert(Cint, 23) # File table overflow
-const EMFILE    = convert(Cint, 24) # Too many open files
-const ENOTTY    = convert(Cint, 25) # Not a typewriter
-const ETXTBSY   = convert(Cint, 26) # Text file busy
-const EFBIG     = convert(Cint, 27) # File too large
-const ENOSPC    = convert(Cint, 28) # No space left on device
-const ESPIPE    = convert(Cint, 29) # Illegal seek
-const EROFS     = convert(Cint, 30) # Read-only file system
-const EMLINK    = convert(Cint, 31) # Too many links
-const EPIPE     = convert(Cint, 32) # Broken pipe
-const EDOM      = convert(Cint, 33) # Math argument out of domain of func
-const ERANGE    = convert(Cint, 34) # Math result not representable
 
 # Local Variables:
 # mode: Julia
