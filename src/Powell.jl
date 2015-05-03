@@ -587,7 +587,7 @@ function newuoa_create(n::Integer, npt::Integer,
     ptr = ccall((:newuoa_create, opklib), Ptr{Void},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
-                n, m, rhobeg, rhoend, verbose, maxeval)
+                n, npt, rhobeg, rhoend, verbose, maxeval)
     if ptr == C_NULL
         reason = (errno() == Base.Errno.ENOMEM
                   ? "insufficient memory"
@@ -642,7 +642,7 @@ function newuoa_get_rho(ctx::NewuoaContext)
     ccall((:newuoa_get_rho, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
 end
 
-function newuoa_test()
+function newuoa_test(revcom::Bool=false)
     # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with
     # NPT = 2N+1.
     function ftest(x::Vector{Cdouble})
@@ -676,8 +676,6 @@ function newuoa_test()
     end
 
     # Run the tests.
-    iprint = 2
-    maxfun = 5000
     rhoend = 1e-6
     for n = 2:2:8
         npt = 2*n + 1
@@ -687,7 +685,20 @@ function newuoa_test()
         end
         rhobeg = x[1]*0.2
         @printf("\n\n    Results with N =%2d and NPT =%3d\n", n, npt)
-        newuoa!(ftest, x, npt, rhobeg, rhoend, verbose=2, maxeval=5000)
+        if revcom
+            # Test the reverse communication variant.
+            ctx = newuoa_create(n, npt, rhobeg, rhoend, verbose=2, maxeval=5000)
+            status = newuoa_get_status(ctx)
+            while status == NEWUOA_ITERATE
+                fx = ftest(x)
+                status = newuoa_iterate(ctx, fx, x)
+            end
+            if status != NEWUOA_SUCCESS
+                println("Something wrong occured in NEWUOA: ", newuoa_reason(status))
+            end
+        else
+            newuoa!(ftest, x, npt, rhobeg, rhoend, verbose=2, maxeval=5000)
+        end
     end
 end
 
