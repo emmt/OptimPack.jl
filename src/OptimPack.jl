@@ -775,6 +775,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
     end
 end
 
+include("Powell.jl")
 include("spg2.jl")
 
 end # module
