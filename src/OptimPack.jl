@@ -16,6 +16,8 @@ module OptimPack
 
 export nlcg, vmlm, spg2
 
+export fzero, fmin, fmin_global
+
 # Functions must be imported to be extended with new methods.
 import Base.size
 import Base.length
@@ -775,6 +777,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
     end
 end
 
+include("Brent.jl")
 include("Powell.jl")
 include("spg2.jl")
 
