@@ -95,7 +95,7 @@ function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Intege
         ws.pginfn = norminf(_d)
 
         # Print iteration information
-        if printer :> Function
+        if printer <: Function
             printer(ws)
         end
         if verb
