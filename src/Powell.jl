@@ -743,7 +743,7 @@ const bobyqa_objfun_c = cfunction(bobyqa_objfun, Cdouble,
 function bobyqa!(f::Function, x::Vector{Cdouble},
                  xl::Vector{Cdouble}, xu::Vector{Cdouble},
                  rhobeg::Real, rhoend::Real;
-                 npt::Union(Integer,Nothing)=nothing,
+                 npt::Union{Integer,Void}=nothing,
                  verbose::Integer=0, maxeval::Integer=500)
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
