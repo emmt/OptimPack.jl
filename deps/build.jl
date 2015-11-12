@@ -35,4 +35,4 @@ provides(SimpleBuild,
          end),
          optimpack)
 
-@BinDeps.install [:libopk => :opklib]
+@BinDeps.install Dict(:libopk => :opklib)
