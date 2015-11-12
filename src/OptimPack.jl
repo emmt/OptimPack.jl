@@ -45,11 +45,11 @@ const FAILURE = cint(-1)
 # an error exception and avoid aborting the program in case of misuse of the
 # library.
 
-__error__(ptr::Ptr{Uint8}) = (ErrorException(bytestring(ptr)); nothing)
+__error__(ptr::Ptr{UInt8}) = (ErrorException(bytestring(ptr)); nothing)
 
 #function __error__(str::String) = ErrorException(str)
 
-const __cerror__ = cfunction(__error__, Void, (Ptr{Uint8},))
+const __cerror__ = cfunction(__error__, Void, (Ptr{UInt8},))
 
 function __init__()
     ccall((:opk_set_error_handler,opklib),Ptr{Void},(Ptr{Void},),__cerror__)
@@ -105,7 +105,7 @@ size(vsp::DenseVariableSpace) = vsp.size
 size(vsp::DenseVariableSpace, n::Integer) = vsp.size[n]
 ndims(vsp::DenseVariableSpace) = length(vsp.size)
 
-DenseVariableSpace(T::Union(Type{Cfloat},Type{Cdouble}), dims::Int...) = DenseVariableSpace(T, dims)
+DenseVariableSpace(T::Union{Type{Cfloat},Type{Cdouble}}, dims::Int...) = DenseVariableSpace(T, dims)
 
 function checkdims{N}(dims::NTuple{N,Int})
     number::Int = 1
@@ -140,10 +140,10 @@ end
 
 # Note: There are no needs to register a reference for the owner of a
 # vector (it already owns one internally).
-type DenseVector{T<:Union(Cfloat,Cdouble),N} <: Variable
+type DenseVector{T<:Union{Cfloat,Cdouble},N} <: Variable
     handle::Ptr{Void}
     owner::DenseVariableSpace{T,N}
-    array::Union(Array,Nothing)
+    array::Union{Array,Void}
 end
 
 length(v::DenseVector) = length(v.owner)
@@ -154,7 +154,7 @@ ndims(v::DenseVector) = ndims(v.owner)
 
 # FIXME: add means to wrap a Julia array around this or (better?, simpler?)
 #        just use allocate a Julia array and wrap a vector around it?
-function create{T<:Union(Cfloat,Cdouble),N<:Integer}(vspace::DenseVariableSpace{T,N})
+function create{T<:Union{Cfloat,Cdouble},N<:Integer}(vspace::DenseVariableSpace{T,N})
     ptr = ccall((:opk_vcreate, opklib), Ptr{Void}, (Ptr{Void},), vspace.handle)
     systemerror("failed to create vector", ptr == C_NULL)
     obj = DenseVector{T,N}(ptr, vspace, nothing)
