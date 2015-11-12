@@ -23,7 +23,7 @@ const COBYLA_CORRUPTED             = convert(Cint, -4)
 
 # Get a textual explanation of the status returned by COBYLA.
 function cobyla_reason(status::Integer)
-    ptr = ccall((:cobyla_reason, opklib), Ptr{Uint8}, (Cint,), status)
+    ptr = ccall((:cobyla_reason, opklib), Ptr{UInt8}, (Cint,), status)
     if ptr == C_NULL
         error("unknown COBYLA status: ", status)
     end
@@ -506,7 +506,7 @@ const NEWUOA_CORRUPTED            = convert(Cint, -6)
 
 # Get a textual explanation of the status returned by NEWUOA.
 function newuoa_reason(status::Integer)
-    ptr = ccall((:newuoa_reason, opklib), Ptr{Uint8}, (Cint,), status)
+    ptr = ccall((:newuoa_reason, opklib), Ptr{UInt8}, (Cint,), status)
     if ptr == C_NULL
         error("unknown NEWUOA status: ", status)
     end
