@@ -215,11 +215,3 @@ function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Intege
 
     end
 end
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

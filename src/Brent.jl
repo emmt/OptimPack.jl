@@ -568,12 +568,3 @@ function fmin_global{T<:Real}(f::Function, x::Vector{T};
     end
     return (xbest, fbest)
 end
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:
