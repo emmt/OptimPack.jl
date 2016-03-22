@@ -490,8 +490,6 @@ const TASK_WARNING     = cint( 6) # Algorithm terminated with a warning.
 
 abstract Optimizer <: Object
 
-#------------------------------------------------------------------------------
-# NON LINEAR CONJUGATE GRADIENTS
 
 const NLCG_FLETCHER_REEVES        = cuint(1)
 const NLCG_HESTENES_STIEFEL       = cuint(2)
@@ -530,69 +528,6 @@ type NLCG <: Optimizer
     end
 end
 
-start!(opt::NLCG) = ccall((:opk_start_nlcg, opklib), Cint,
-                                   (Ptr{Void},), opt.handle)
-
-function iterate!(opt::NLCG, x::Variable, f::Real, g::Variable)
-    ccall((:opk_iterate_nlcg, opklib), Cint,
-          (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
-          opt.handle, x.handle, f, g.handle)
-end
-
-get_task(opt::NLCG) = ccall((:opk_get_nlcg_task, opklib),
-                            Cint, (Ptr{Void},), opt.handle)
-iterations(opt::NLCG) = ccall((:opk_get_nlcg_iterations, opklib),
-                              Cptrdiff_t, (Ptr{Void},), opt.handle)
-evaluations(opt::NLCG) = ccall((:opk_get_nlcg_evaluations, opklib),
-                               Cptrdiff_t, (Ptr{Void},), opt.handle)
-restarts(opt::NLCG) = ccall((:opk_get_nlcg_restarts, opklib),
-                            Cptrdiff_t, (Ptr{Void},), opt.handle)
-get_gatol(opt::NLCG) = ccall((:opk_get_nlcg_gatol, opklib),
-                             Cdouble, (Ptr{Void},), opt.handle)
-get_grtol(opt::NLCG) = ccall((:opk_get_nlcg_grtol, opklib),
-                             Cdouble, (Ptr{Void},), opt.handle)
-get_stpmin(opt::NLCG) = ccall((:opk_get_nlcg_stpmin, opklib),
-                              Cdouble, (Ptr{Void},), opt.handle)
-get_stpmax(opt::NLCG) = ccall((:opk_get_nlcg_stpmax, opklib),
-                              Cdouble, (Ptr{Void},), opt.handle)
-function set_gatol!(opt::NLCG, gatol::Real)
-    if ccall((:opk_set_nlcg_gatol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
-        e = errno()
-        if e == Base.EINVAL
-            error("invalid value for parameter gatol")
-        else
-            error("unexpected error while setting parameter gatol")
-        end
-    end
-end
-function set_grtol!(opt::NLCG, grtol::Real)
-    if ccall((:opk_set_nlcg_grtol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
-        e = errno()
-        if e == Base.EINVAL
-            error("invalid value for parameter grtol")
-        else
-            error("unexpected error while setting parameter grtol")
-        end
-    end
-end
-function set_stpmin_and_stpmax!(opt::NLCG, stpmin::Real, stpmax::Real)
-    if ccall((:opk_set_nlcg_stpmin_and_stpmax, opklib),
-             Cint, (Ptr{Void},Cdouble,Cdouble),
-             opt.handle, stpmin, stpmax) != SUCCESS
-        e = errno()
-        if e == Base.EINVAL
-            error("invalid values for parameters stpmin and stpmax")
-        else
-            error("unexpected error while setting parameters stpmin and stpmax")
-        end
-    end
-end
-
-#------------------------------------------------------------------------------
-# VARIABLE METRIC OPTIMIZATION METHOD
-
 type VMLM <: Optimizer
     handle::Ptr{Void}
     vspace::VariableSpace
@@ -618,65 +553,171 @@ type VMLM <: Optimizer
     end
 end
 
-start!(opt::VMLM) = ccall((:opk_start_vmlm, opklib), Cint,
-                          (Ptr{Void},), opt.handle)
+for (T, start, iterate,
+     get_task,
+     get_iterations,
+     get_evaluations,
+     get_restarts,
+     get_gatol, get_grtol,
+     set_gatol, set_grtol,
+     get_stpmin, get_stpmax,
+     set_stpmin_and_stpmax) in ((NLCG, :opk_start_nlcg, :opk_iterate_nlcg,
+                                 :opk_get_nlcg_task, :opk_get_nlcg_iterations,
+                                 :opk_get_nlcg_evaluations,
+                                 :opk_get_nlcg_restarts,
+                                 :opk_get_nlcg_gatol, :opk_get_nlcg_grtol,
+                                 :opk_set_nlcg_gatol, :opk_set_nlcg_grtol,
+                                 :opk_get_nlcg_stpmin, :opk_get_nlcg_stpmax,
+                                 :opk_set_nlcg_stpmin_and_stpmax),
+                                (VMLM, :opk_start_vmlm, :opk_iterate_vmlm,
+                                 :opk_get_vmlm_task, :opk_get_vmlm_iterations,
+                                 :opk_get_vmlm_evaluations,
+                                 :opk_get_vmlm_restarts,
+                                 :opk_get_vmlm_gatol, :opk_get_vmlm_grtol,
+                                 :opk_set_vmlm_gatol, :opk_set_vmlm_grtol,
+                                 :opk_get_vmlm_stpmin, :opk_get_vmlm_stpmax,
+                                 :opk_set_vmlm_stpmin_and_stpmax))
+    @eval begin
 
-function iterate!(opt::VMLM, x::Variable, f::Real, g::Variable)
-    ccall((:opk_iterate_vmlm, opklib), Cint,
-          (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
-          opt.handle, x.handle, f, g.handle)
+        start!(opt::$T) = ccall(($start, opklib), Cint,
+                                  (Ptr{Void},), opt.handle)
+
+        function iterate!(opt::$T, x::Variable, f::Real, g::Variable)
+            ccall(($iterate, opklib), Cint,
+                  (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
+                  opt.handle, x.handle, f, g.handle)
+        end
+
+        get_task(opt::$T) = ccall(($get_task, opklib),
+                                    Cint, (Ptr{Void},), opt.handle)
+
+        iterations(opt::$T) = ccall(($get_iterations, opklib),
+                                    Cptrdiff_t, (Ptr{Void},), opt.handle)
+
+        evaluations(opt::$T) = ccall(($get_evaluations, opklib),
+                                     Cptrdiff_t, (Ptr{Void},), opt.handle)
+
+        restarts(opt::$T) = ccall(($get_restarts, opklib),
+                                  Cptrdiff_t, (Ptr{Void},), opt.handle)
+
+        get_gatol(opt::$T) = ccall(($get_gatol, opklib),
+                                   Cdouble, (Ptr{Void},), opt.handle)
+
+        get_grtol(opt::$T) = ccall(($get_grtol, opklib),
+                                   Cdouble, (Ptr{Void},), opt.handle)
+
+        function set_gatol!(opt::$T, gatol::Real)
+            if ccall(($set_gatol, opklib),
+                     Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
+                e = errno()
+                if e == Base.EINVAL
+                    error("invalid value for parameter gatol")
+                else
+                    error("unexpected error while setting parameter gatol")
+                end
+            end
+        end
+
+        function set_grtol!(opt::$T, grtol::Real)
+            if ccall(($set_grtol, opklib),
+                     Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
+                e = errno()
+                if e == Base.EINVAL
+                    error("invalid value for parameter grtol")
+                else
+                    error("unexpected error while setting parameter grtol")
+                end
+            end
+        end
+
+        get_stpmin(opt::$T) = ccall(($get_stpmin, opklib),
+                                    Cdouble, (Ptr{Void},), opt.handle)
+
+        get_stpmax(opt::$T) = ccall(($get_stpmax, opklib),
+                                    Cdouble, (Ptr{Void},), opt.handle)
+
+        function set_stpmin_and_stpmax!(opt::$T, stpmin::Real, stpmax::Real)
+            if ccall(($set_stpmin_and_stpmax, opklib),
+                     Cint, (Ptr{Void},Cdouble,Cdouble),
+                     opt.handle, stpmin, stpmax) != SUCCESS
+                e = errno()
+                if e == Base.EINVAL
+                    error("invalid values for parameters stpmin and stpmax")
+                else
+                    error("unexpected error while setting parameters stpmin and stpmax")
+                end
+            end
+        end
+    end
 end
 
-get_task(opt::VMLM) = ccall((:opk_get_vmlm_task, opklib),
-                            Cint, (Ptr{Void},), opt.handle)
-iterations(opt::VMLM) = ccall((:opk_get_vmlm_iterations, opklib),
-                              Cptrdiff_t, (Ptr{Void},), opt.handle)
-evaluations(opt::VMLM) = ccall((:opk_get_vmlm_evaluations, opklib),
-                               Cptrdiff_t, (Ptr{Void},), opt.handle)
-restarts(opt::VMLM) = ccall((:opk_get_vmlm_restarts, opklib),
-                            Cptrdiff_t, (Ptr{Void},), opt.handle)
-get_gatol(opt::VMLM) = ccall((:opk_get_vmlm_gatol, opklib),
-                             Cdouble, (Ptr{Void},), opt.handle)
-get_grtol(opt::VMLM) = ccall((:opk_get_vmlm_grtol, opklib),
-                             Cdouble, (Ptr{Void},), opt.handle)
-get_stpmin(opt::VMLM) = ccall((:opk_get_vmlm_stpmin, opklib),
-                              Cdouble, (Ptr{Void},), opt.handle)
-get_stpmax(opt::VMLM) = ccall((:opk_get_vmlm_stpmax, opklib),
-                              Cdouble, (Ptr{Void},), opt.handle)
-function set_gatol!(opt::VMLM, gatol::Real)
-    if ccall((:opk_set_vmlm_gatol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
-        e = errno()
-        if e == Base.EINVAL
-            error("invalid value for parameter gatol")
-        else
-            error("unexpected error while setting parameter gatol")
-        end
-    end
-end
-function set_grtol!(opt::VMLM, grtol::Real)
-    if ccall((:opk_set_vmlm_grtol, opklib),
-             Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
-        e = errno()
-        if e == Base.EINVAL
-            error("invalid value for parameter grtol")
-        else
-            error("unexpected error while setting parameter grtol")
-        end
-    end
-end
-function set_stpmin_and_stpmax!(opt::VMLM, stpmin::Real, stpmax::Real)
-    if ccall((:opk_set_vmlm_stpmin_and_stpmax, opklib),
-             Cint, (Ptr{Void},Cdouble,Cdouble),
-             opt.handle, stpmin, stpmax) != SUCCESS
-        e = errno()
-        if e == Base.EINVAL
-            error("invalid values for parameters stpmin and stpmax")
-        else
-            error("unexpected error while setting parameters stpmin and stpmax")
-        end
-    end
-end
+"""
+`task = start!(opt)` starts optimization with the nonlinear optimizer
+`opt` and returns the next pending task.
+""" start!
+
+"""
+`task = iterate!(opt, x, f, g)` performs one optimization step with
+the nonlinear optimizer `opt` for variables `x`, function value `f`
+and gradient `g`.  The method returns the next pending task.
+""" iterate!
+
+"""
+`get_task(opt)` returns the current pending task for the nonlinear
+optimizer `opt`.
+""" get_task
+
+"""
+`iterations(opt)` returns the number of iterations performed by the
+nonlinear optimizer `opt`.
+""" iterations
+
+"""
+`evaluations(opt)` returns the number of function (and gradient)
+evaluations requested by the nonlinear optimizer `opt`.
+""" evaluations
+
+"""
+`restarts(opt)` returns the number of restarts performed by the
+nonlinear optimizer `opt`.
+""" restarts
+
+"""
+`get_gatol(opt)` returns the absolute gradient threshold used by the
+nonlinear optimizer `opt` to check for the convergence.
+""" get_gatol
+
+"""
+`get_grtol(opt)` returns the relative gradient threshold used by the
+nonlinear optimizer `opt` to check for the convergence.
+""" get_grtol
+
+"""
+`set_gatol!(opt, gatol)` set the absolute gradient threshold used by the
+nonlinear optimizer `opt` to check for the convergence.
+""" set_gatol!
+
+"""
+`set_grtol!(opt, grtol)` set the relative gradient threshold used by the
+nonlinear optimizer `opt` to check for the convergence.
+""" set_grtol!
+
+"""
+`get_stpmin(opt)` returns the minimum relative step length used by the
+nonlinear optimizer `opt` during line searches.
+""" get_stpmin
+
+"""
+`get_stpmax(opt)` returns the maximum relative step length used by the
+nonlinear optimizer `opt` during line searches.
+""" get_stpmax
+
+"""
+`set_stpmin_and_stpmax!(opt, stpmin, stpmax)` set the minimum and the
+maximum relative step length used by the nonlinear optimizer `opt` during
+line searches.
+""" set_stpmin_and_stpmax!
+
 
 const SCALING_NONE             = cint(0)
 const SCALING_OREN_SPEDICATO   = cint(1) # gamma = <s,y>/<y,y>
