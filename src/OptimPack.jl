@@ -301,18 +301,25 @@ function dot(x::Variable, y::Variable)
           x.handle, y.handle)
 end
 
-function axpby!(dst::Variable,
-                alpha::Real, x::Variable,
-                beta::Real,  y::Variable)
+"""
+`combine!(dst, alpha, x, beta, y)` stores into the destination `dst` the linear
+combination `alpha*x + beta*y`.
+
+`combine!(dst, alpha, x, beta, y, gamma, z)` stores into the destination `dst`
+the linear combination `alpha*x + beta*y + gamma*z`.
+"""
+function combine!(dst::Variable,
+                  alpha::Real, x::Variable,
+                  beta::Real,  y::Variable)
     ccall((:opk_vaxpby, opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle)
 end
 
-function axpbypcz!(dst::Variable,
-                   alpha::Real, x::Variable,
-                   beta::Real,  y::Variable,
-                   gamma::Real, z::Variable)
+function combine!(dst::Variable,
+                  alpha::Real, x::Variable,
+                  beta::Real,  y::Variable,
+                  gamma::Real, z::Variable)
     ccall((:opk_vaxpbypcz, opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle, gamma, y.handle)
