@@ -32,6 +32,11 @@ else
     error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
 end
 
+"""
+`Float` is any floating point type supported by the library.
+"""
+typealias Float Union{Cfloat,Cdouble}
+
 cint(i::Integer) = convert(Cint, i)
 cuint(i::Integer) = convert(Cuint, i)
 
@@ -47,12 +52,11 @@ const FAILURE = cint(-1)
 
 __error__(ptr::Ptr{UInt8}) = (ErrorException(bytestring(ptr)); nothing)
 
-#function __error__(str::String) = ErrorException(str)
-
 const __cerror__ = cfunction(__error__, Void, (Ptr{UInt8},))
 
 function __init__()
-    ccall((:opk_set_error_handler,opklib),Ptr{Void},(Ptr{Void},),__cerror__)
+    ccall((:opk_set_error_handler, opklib), Ptr{Void}, (Ptr{Void},),
+          __cerror__)
     nothing
 end
 
@@ -60,24 +64,34 @@ __init__()
 
 #------------------------------------------------------------------------------
 # OBJECT MANAGEMENT
-#
-# All concrete types derived from the abstract Object type have a `handle`
-# member which stores the address of the OptimPack object.  To avoid conflicts
-# with Julia `Vector` type, an OptimPack vector corresponds to the type
-# `Variable`.
+
+"""
+OptimPack Objects
+=================
+
+All concrete types derived from the abstract `Object` type have a `handle`
+member which stores the address of the OptimPack object.  To avoid conflicts
+with Julia `Vector` type, an OptimPack vector (*i.e.* `opk_vector_t`)
+corresponds to the type `Variable`.
+"""
 abstract Object
-abstract VariableSpace <: Object
-abstract Variable      <: Object
-abstract LineSearch    <: Object
 
+"""
+Reference Counting
+==================
+
+OptimPack use reference counting for managing the memory.  The number of
+references of an object is given by `references(obj)`.
+
+`__hold_object__(ptr)` set a reference on an OptimPack object while
+`__drop_object__(ptr)` discards a reference on an OptimPack object.  The
+argument `ptr` is the address of the object and these functions are low-level
+private functions.
+"""
 function references(obj::Object)
-    ccall((:opk_get_object_references, opklib), Cptrdiff_t, (Ptr{Void},), obj.handle)
+    ccall((:opk_get_object_references, opklib), Cptrdiff_t, (Ptr{Void},),
+          obj.handle)
 end
-
-# __hold_object__() set a reference on an OptimPack object while
-# __drop_object__() discards a reference on an OptimPack object.  The argument
-# is the address of the object and these functions are low-level private
-# functions.
 
 function __hold_object__(ptr::Ptr{Void})
     ccall((:opk_hold_object, opklib), Ptr{Void}, (Ptr{Void},), ptr)
@@ -87,9 +101,19 @@ function __drop_object__(ptr::Ptr{Void})
     ccall((:opk_drop_object, opklib), Void, (Ptr{Void},), ptr)
 end
 
+@doc (@doc references) __hold_object__
+@doc (@doc references) __drop_object__
+
 #------------------------------------------------------------------------------
-# VECTOR SPACES
-#
+# VARIABLE SPACE
+
+abstract VariableSpace <: Object
+"""
+Variable Space
+==============
+Abstract type `VariableSpace` corresponds to a *vector space* (type
+`opk_vspace_t`) in OptimPack.
+"""
 
 type DenseVariableSpace{T,N} <: VariableSpace
     handle::Ptr{Void}
@@ -105,7 +129,8 @@ size(vsp::DenseVariableSpace) = vsp.size
 size(vsp::DenseVariableSpace, n::Integer) = vsp.size[n]
 ndims(vsp::DenseVariableSpace) = length(vsp.size)
 
-DenseVariableSpace(T::Union{Type{Cfloat},Type{Cdouble}}, dims::Int...) = DenseVariableSpace(T, dims)
+DenseVariableSpace(T::Union{Type{Cfloat},Type{Cdouble}},
+                   dims::Int...) = DenseVariableSpace(T, dims)
 
 function checkdims{N}(dims::NTuple{N,Int})
     number::Int = 1
@@ -138,9 +163,19 @@ function DenseVariableSpace{N}(::Type{Cdouble}, dims::NTuple{N,Int})
     return obj
 end
 
+#------------------------------------------------------------------------------
+# VARIABLES
+
+abstract Variable <: Object
+"""
+Variables
+=========
+Abstract type `Variable` correspond to *vectors* (type `opk_vector_t`) in OptimPack.
+"""
+
 # Note: There are no needs to register a reference for the owner of a
 # vector (it already owns one internally).
-type DenseVariable{T<:Union{Cfloat,Cdouble},N} <: Variable
+type DenseVariable{T<:Float,N} <: Variable
     handle::Ptr{Void}
     owner::DenseVariableSpace{T,N}
     array::Union{Array,Void}
@@ -154,7 +189,7 @@ ndims(v::DenseVariable) = ndims(v.owner)
 
 # FIXME: add means to wrap a Julia array around this or (better?, simpler?)
 #        just use allocate a Julia array and wrap a vector around it?
-function create{T<:Union{Cfloat,Cdouble},N<:Integer}(vspace::DenseVariableSpace{T,N})
+function create{T<:Float,N<:Integer}(vspace::DenseVariableSpace{T,N})
     ptr = ccall((:opk_vcreate, opklib), Ptr{Void}, (Ptr{Void},), vspace.handle)
     systemerror("failed to create vector", ptr == C_NULL)
     obj = DenseVariable{T,N}(ptr, vspace, nothing)
@@ -162,94 +197,114 @@ function create{T<:Union{Cfloat,Cdouble},N<:Integer}(vspace::DenseVariableSpace{
     return obj
 end
 
-function wrap{T<:Cfloat,N}(s::DenseVariableSpace{T,N}, a::DenseArray{T,N})
-    assert(size(a) == size(s))
-    ptr = ccall((:opk_wrap_simple_float_vector, opklib), Ptr{Void},
-                (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
-                s.handle, a, C_NULL, C_NULL)
-    systemerror("failed to wrap vector", ptr == C_NULL)
-    obj = DenseVariable{T,N}(ptr, s, a)
-    finalizer(obj, obj -> __drop_object__(obj.handle))
-    return obj
-end
+for (T, wrap, rewrap) in ((Cfloat, :opk_wrap_simple_float_vector,
+                           :opk_rewrap_simple_float_vector),
+                          (Cdouble, :opk_wrap_simple_double_vector,
+                           :opk_rewrap_simple_double_vector))
+    @eval begin
+        function wrap{N}(s::DenseVariableSpace{$T,N}, a::DenseArray{$T,N})
+            assert(size(a) == size(s))
+            ptr = ccall(($wrap, opklib), Ptr{Void},
+                        (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
+                        s.handle, a, C_NULL, C_NULL)
+            systemerror("failed to wrap vector", ptr == C_NULL)
+            obj = DenseVariable{$T,N}(ptr, s, a)
+            finalizer(obj, obj -> __drop_object__(obj.handle))
+            return obj
+        end
 
-function wrap!{T<:Cfloat,N}(v::DenseVariable{T,N}, a::DenseArray{T,N})
-    assert(size(a) == size(v))
-    assert(v.array != nothing)
-    status = ccall((:opk_rewrap_simple_float_vector, opklib), Cint,
-                   (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
-                   v.handle, a, C_NULL, C_NULL)
-    systemerror("failed to re-wrap vector", status != SUCCESS)
-    v.array = a
-    return v
-end
-
-function wrap{T<:Cdouble,N}(s::DenseVariableSpace{T,N}, a::DenseArray{T,N})
-    assert(size(a) == size(s))
-    ptr = ccall((:opk_wrap_simple_double_vector, opklib), Ptr{Void},
-                (Ptr{Void}, Ptr{Cdouble}, Ptr{Void}, Ptr{Void}),
-                s.handle, a, C_NULL, C_NULL)
-    systemerror("failed to wrap vector", ptr == C_NULL)
-    obj = DenseVariable{T,N}(ptr, s, a)
-    finalizer(obj, obj -> __drop_object__(obj.handle))
-    return obj
-end
-
-function wrap!{T<:Cdouble,N}(v::DenseVariable{T,N}, a::DenseArray{T,N})
-    assert(size(a) == size(v))
-    assert(v.array != nothing)
-    status = ccall((:opk_rewrap_simple_double_vector, opklib), Cint,
-                   (Ptr{Void}, Ptr{Cdouble}, Ptr{Void}, Ptr{Void}),
-                   v.handle, a, C_NULL, C_NULL)
-    systemerror("failed to re-wrap vector", status != SUCCESS)
-    v.array = a
-    return v
+        function wrap!{N}(v::DenseVariable{$T,N}, a::DenseArray{$T,N})
+            assert(size(a) == size(v))
+            assert(v.array != nothing)
+            status = ccall(($rewrap, opklib), Cint,
+                           (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
+                           v.handle, a, C_NULL, C_NULL)
+            systemerror("failed to re-wrap vector", status != SUCCESS)
+            v.array = a
+            return v
+        end
+    end
 end
 
 #------------------------------------------------------------------------------
-# OPERATIONS ON VECTORS
+# OPERATIONS ON VARIABLES
 
-function norm1(vec::Variable)
-    ccall((:opk_vnorm1,opklib), Cdouble, (Ptr{Void},), vec.handle)
+"""
+`norm1(v)` returns the L1 norm (sum of absolute values) ov *variables* `v`.
+"""
+function norm1(v::Variable)
+    ccall((:opk_vnorm1, opklib), Cdouble, (Ptr{Void},), v.handle)
 end
 
-function norm2(vec::Variable)
-    ccall((:opk_vnorm2,opklib), Cdouble, (Ptr{Void},), vec.handle)
+"""
+`norm2(v)` returns the Euclidean (L2) norm (square root of the sum of squared
+values) of *variables* `v`.
+"""
+function norm2(v::Variable)
+    ccall((:opk_vnorm2, opklib), Cdouble, (Ptr{Void},), v.handle)
 end
 
-function norminf(vec::Variable)
-    ccall((:opk_vnorminf,opklib), Cdouble, (Ptr{Void},), vec.handle)
+"""
+`norminf(v)` returns the infinite norm (maximum absolute value) of *variables*
+`v`.
+"""
+function norminf(v::Variable)
+    ccall((:opk_vnorminf, opklib), Cdouble, (Ptr{Void},), v.handle)
 end
 
-function zero!(vec::Variable)
-    ccall((:opk_vzero,opklib), Void, (Ptr{Void},), vec.handle)
+"""
+`zero!(v)` fills *variables* `v` with zeros.
+"""
+function zero!(v::Variable)
+    ccall((:opk_vzero, opklib), Void, (Ptr{Void},), v.handle)
 end
 
-function fill!(vec::Variable, val::Real)
-    ccall((:opk_vfill, opklib), Void, (Ptr{Void},Cdouble), vec.handle, val)
+"""
+`fill!(v, alpha)` fills *variables* `v` with value `alpha`.
+"""
+function fill!(v::Variable, alpha::Real)
+    ccall((:opk_vfill, opklib), Void, (Ptr{Void},Cdouble),
+          v.handle, alpha)
 end
 
+"""
+`copy!(dst, src)` copies source *variables* `src` into the destination
+*variables* `dst`.
+"""
 function copy!(dst::Variable, src::Variable)
-    ccall((:opk_vcopy,opklib), Void, (Ptr{Void},Ptr{Void}), dst.handle, src.handle)
+    ccall((:opk_vcopy, opklib), Void, (Ptr{Void},Ptr{Void}),
+          dst.handle, src.handle)
 end
 
+"""
+`scale!(dst, alpha, src)` stores `alpha` times the source *variables* `src`
+into the destination *variables* `dst`.
+"""
 function scale!(dst::Variable, alpha::Real, src::Variable)
-    ccall((:opk_vscale,opklib), Void, (Ptr{Void},Cdouble,Ptr{Void}),
+    ccall((:opk_vscale, opklib), Void, (Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, src.handle)
 end
 
+"""
+`swap!(x, y)` exchanges the contents of *variables* `x` and `y`.
+"""
 function swap!(x::Variable, y::Variable)
-    ccall((:opk_vswap,opklib), Void, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
+    ccall((:opk_vswap, opklib), Void, (Ptr{Void},Ptr{Void}),
+          x.handle, y.handle)
 end
 
+"""
+`dot(x, y)` returns the inner product of *variables* `x` and `y`.
+"""
 function dot(x::Variable, y::Variable)
-    ccall((:opk_vdot,opklib), Cdouble, (Ptr{Void},Ptr{Void}), x.handle, y.handle)
+    ccall((:opk_vdot, opklib), Cdouble, (Ptr{Void},Ptr{Void}),
+          x.handle, y.handle)
 end
 
 function axpby!(dst::Variable,
                 alpha::Real, x::Variable,
                 beta::Real,  y::Variable)
-    ccall((:opk_vaxpby,opklib), Void,
+    ccall((:opk_vaxpby, opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle)
 end
@@ -258,7 +313,7 @@ function axpbypcz!(dst::Variable,
                    alpha::Real, x::Variable,
                    beta::Real,  y::Variable,
                    gamma::Real, z::Variable)
-    ccall((:opk_vaxpbypcz,opklib), Void,
+    ccall((:opk_vaxpbypcz, opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle, gamma, y.handle)
 end
@@ -270,7 +325,7 @@ if false
     function apply_direct(op::Operator,
                           dst::Variable,
                           src::Variable)
-        status = ccall((:opk_apply_direct,opklib), Cint,
+        status = ccall((:opk_apply_direct, opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
         if status != SUCCESS
@@ -282,7 +337,7 @@ if false
     function apply_adoint(op::Operator,
                           dst::Variable,
                           src::Variable)
-        status = ccall((:opk_apply_adjoint,opklib), Cint,
+        status = ccall((:opk_apply_adjoint, opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
         if status != SUCCESS
@@ -293,7 +348,7 @@ if false
     function apply_inverse(op::Operator,
                            dst::Variable,
                            src::Variable)
-        status = ccall((:opk_apply_inverse,opklib), Cint,
+        status = ccall((:opk_apply_inverse, opklib), Cint,
                        (Ptr{Void},Ptr{Void},Ptr{Void}),
                        op.handle, dst.handle, src.handle)
         if status != SUCCESS
@@ -777,6 +832,7 @@ function vmlm{T,N}(fg!::Function, x0::DenseArray{T,N}, m::Integer=3;
     end
 end
 
+# Load other components.
 include("Brent.jl")
 include("Powell.jl")
 include("spg2.jl")
