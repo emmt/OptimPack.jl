@@ -8,7 +8,7 @@
 # This file is part of OptimPack.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2014, Éric Thiébaut.
+# Copyright (C) 2014-2016, Éric Thiébaut.
 #
 # ----------------------------------------------------------------------------
 
@@ -140,24 +140,24 @@ end
 
 # Note: There are no needs to register a reference for the owner of a
 # vector (it already owns one internally).
-type DenseVector{T<:Union{Cfloat,Cdouble},N} <: Variable
+type DenseVariable{T<:Union{Cfloat,Cdouble},N} <: Variable
     handle::Ptr{Void}
     owner::DenseVariableSpace{T,N}
     array::Union{Array,Void}
 end
 
-length(v::DenseVector) = length(v.owner)
-eltype(v::DenseVector) = eltype(v.owner)
-size(v::DenseVector) = size(v.owner)
-size(v::DenseVector, n::Integer) = size(v.owner, n)
-ndims(v::DenseVector) = ndims(v.owner)
+length(v::DenseVariable) = length(v.owner)
+eltype(v::DenseVariable) = eltype(v.owner)
+size(v::DenseVariable) = size(v.owner)
+size(v::DenseVariable, n::Integer) = size(v.owner, n)
+ndims(v::DenseVariable) = ndims(v.owner)
 
 # FIXME: add means to wrap a Julia array around this or (better?, simpler?)
 #        just use allocate a Julia array and wrap a vector around it?
 function create{T<:Union{Cfloat,Cdouble},N<:Integer}(vspace::DenseVariableSpace{T,N})
     ptr = ccall((:opk_vcreate, opklib), Ptr{Void}, (Ptr{Void},), vspace.handle)
     systemerror("failed to create vector", ptr == C_NULL)
-    obj = DenseVector{T,N}(ptr, vspace, nothing)
+    obj = DenseVariable{T,N}(ptr, vspace, nothing)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
@@ -168,12 +168,12 @@ function wrap{T<:Cfloat,N}(s::DenseVariableSpace{T,N}, a::DenseArray{T,N})
                 (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
                 s.handle, a, C_NULL, C_NULL)
     systemerror("failed to wrap vector", ptr == C_NULL)
-    obj = DenseVector{T,N}(ptr, s, a)
+    obj = DenseVariable{T,N}(ptr, s, a)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function wrap!{T<:Cfloat,N}(v::DenseVector{T,N}, a::DenseArray{T,N})
+function wrap!{T<:Cfloat,N}(v::DenseVariable{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(v))
     assert(v.array != nothing)
     status = ccall((:opk_rewrap_simple_float_vector, opklib), Cint,
@@ -190,12 +190,12 @@ function wrap{T<:Cdouble,N}(s::DenseVariableSpace{T,N}, a::DenseArray{T,N})
                 (Ptr{Void}, Ptr{Cdouble}, Ptr{Void}, Ptr{Void}),
                 s.handle, a, C_NULL, C_NULL)
     systemerror("failed to wrap vector", ptr == C_NULL)
-    obj = DenseVector{T,N}(ptr, s, a)
+    obj = DenseVariable{T,N}(ptr, s, a)
     finalizer(obj, obj -> __drop_object__(obj.handle))
     return obj
 end
 
-function wrap!{T<:Cdouble,N}(v::DenseVector{T,N}, a::DenseArray{T,N})
+function wrap!{T<:Cdouble,N}(v::DenseVariable{T,N}, a::DenseArray{T,N})
     assert(size(a) == size(v))
     assert(v.array != nothing)
     status = ccall((:opk_rewrap_simple_double_vector, opklib), Cint,
@@ -257,7 +257,7 @@ end
 function axpbypcz!(dst::Variable,
                    alpha::Real, x::Variable,
                    beta::Real,  y::Variable,
-                  gamma::Real, z::Variable)
+                   gamma::Real, z::Variable)
     ccall((:opk_vaxpbypcz,opklib), Void,
           (Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void},Cdouble,Ptr{Void}),
           dst.handle, alpha, x.handle, beta, y.handle, gamma, y.handle)
@@ -314,7 +314,7 @@ type ArmijoLineSearch <: LineSearch
     function ArmijoLineSearch(;ftol::Real=1e-4)
         assert(0.0 <= ftol < 1.0)
         ptr = ccall((:opk_lnsrch_new_backtrack, opklib), Ptr{Void},
-                (Cdouble,), ftol)
+                    (Cdouble,), ftol)
         systemerror("failed to create linesearch", ptr == C_NULL)
         obj = new(ptr, ftol)
         finalizer(obj, obj -> __drop_object__(obj.handle))
@@ -395,17 +395,17 @@ function iterate!(ls::LineSearch, stp::Real, f::Real, df::Real)
 end
 
 get_step(ls::LineSearch) = ccall((:opk_lnsrch_get_step, opklib),
-                                          Cdouble, (Ptr{Void}, ), ls)
+                                 Cdouble, (Ptr{Void}, ), ls)
 get_status(ls::LineSearch) = ccall((:opk_lnsrch_get_status, opklib),
-                                            Cint, (Ptr{Void}, ), ls)
+                                   Cint, (Ptr{Void}, ), ls)
 has_errors(ls::LineSearch) = (ccall((:opk_lnsrch_has_errors, opklib),
-                                             Cint, (Ptr{Void}, ), ls) != 0)
+                                    Cint, (Ptr{Void}, ), ls) != 0)
 has_warnings(ls::LineSearch) = (ccall((:opk_lnsrch_has_warnings, opklib),
-                                               Cint, (Ptr{Void}, ), ls) != 0)
+                                      Cint, (Ptr{Void}, ), ls) != 0)
 converged(ls::LineSearch) = (ccall((:opk_lnsrch_converged, opklib),
-                                            Cint, (Ptr{Void}, ), ls) != 0)
+                                   Cint, (Ptr{Void}, ), ls) != 0)
 finished(ls::LineSearch) = (ccall((:opk_lnsrch_finished, opklib),
-                                            Cint, (Ptr{Void}, ), ls) != 0)
+                                  Cint, (Ptr{Void}, ), ls) != 0)
 get_ftol(ls::LineSearch) = ls.ftol
 get_gtol(ls::MoreThuenteLineSearch) = ls.gtol
 get_xtol(ls::MoreThuenteLineSearch) = ls.xtol
@@ -478,21 +478,21 @@ function iterate!(opt::NLCG, x::Variable, f::Real, g::Variable)
 end
 
 get_task(opt::NLCG) = ccall((:opk_get_nlcg_task, opklib),
-                                     Cint, (Ptr{Void},), opt.handle)
+                            Cint, (Ptr{Void},), opt.handle)
 iterations(opt::NLCG) = ccall((:opk_get_nlcg_iterations, opklib),
-                                       Cptrdiff_t, (Ptr{Void},), opt.handle)
+                              Cptrdiff_t, (Ptr{Void},), opt.handle)
 evaluations(opt::NLCG) = ccall((:opk_get_nlcg_evaluations, opklib),
-                                        Cptrdiff_t, (Ptr{Void},), opt.handle)
+                               Cptrdiff_t, (Ptr{Void},), opt.handle)
 restarts(opt::NLCG) = ccall((:opk_get_nlcg_restarts, opklib),
-                                     Cptrdiff_t, (Ptr{Void},), opt.handle)
+                            Cptrdiff_t, (Ptr{Void},), opt.handle)
 get_gatol(opt::NLCG) = ccall((:opk_get_nlcg_gatol, opklib),
-                                      Cdouble, (Ptr{Void},), opt.handle)
+                             Cdouble, (Ptr{Void},), opt.handle)
 get_grtol(opt::NLCG) = ccall((:opk_get_nlcg_grtol, opklib),
-                                      Cdouble, (Ptr{Void},), opt.handle)
+                             Cdouble, (Ptr{Void},), opt.handle)
 get_stpmin(opt::NLCG) = ccall((:opk_get_nlcg_stpmin, opklib),
-                                       Cdouble, (Ptr{Void},), opt.handle)
+                              Cdouble, (Ptr{Void},), opt.handle)
 get_stpmax(opt::NLCG) = ccall((:opk_get_nlcg_stpmax, opklib),
-                                       Cdouble, (Ptr{Void},), opt.handle)
+                              Cdouble, (Ptr{Void},), opt.handle)
 function set_gatol!(opt::NLCG, gatol::Real)
     if ccall((:opk_set_nlcg_gatol, opklib),
              Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
