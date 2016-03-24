@@ -14,13 +14,20 @@ From a Julia session, type the following commands:
 Pkg.update()
 Pkg.add("OptimPack")
 ```
+to install the package.  This just has to done once.
+
+To use the package in your code:
+```julia
+using OptimPack
+```
 
 
 ## Unconstrained Minimization of a Nonlinear Smooth Function
 
-There are two methods in OptimPack to minimize a nonlinear smooth
-multivariate function without constraints: non-linear conjugate gradient
-(NLCG) and limited memory variable metric method (VMLM).
+There are two methods in OptimPack to minimize a nonlinear smooth multivariate
+function without constraints: non-linear conjugate gradient (NLCG) implemented
+by `nlcg` and limited memory variable metric method (VMLM) implemented by
+`vmlm`.  In general, `vmlm` is more efficient than `nlcg`.
 
 The easiest way to use these minimizers is to provide a Julia function, say
 `fg!`, which is in charge of computing the value of the function and its
@@ -102,7 +109,7 @@ in CONMIN (Shanno & Phua, 1980).
 
 The default settings for nonlinear conjugate gradient is:
 ```julia
-const OptimPack.NLCG_DEFAULT  = (OptimPack.NLCG_HAGER_ZHANG | OptimPack.NLCG_SHANNO_PHUA)
+const OptimPack.NLCG_DEFAULT = (OptimPack.NLCG_HAGER_ZHANG | OptimPack.NLCG_SHANNO_PHUA)
 ```
 
 
