@@ -149,7 +149,7 @@ for (T, f) in ((Cfloat, :opk_new_simple_float_vector_space),
     @eval begin
         function DenseVariableSpace{N}(::Type{$T}, dims::NTuple{N,Int})
             length::Int = checkdims(dims)
-            ptr = ccall(($f, opklib), Ptr{Void}, (Cptrdiff_t,), length)
+            ptr = ccall(($(string(f)), opklib), Ptr{Void}, (Cptrdiff_t,), length)
             systemerror("failed to create vector space", ptr == C_NULL)
             obj = DenseVariableSpace{$T,N}(ptr, $T, dims, length)
             finalizer(obj, obj -> __drop_object__(obj.handle))
@@ -203,8 +203,8 @@ for (T, wrap, rewrap) in ((Cfloat, :opk_wrap_simple_float_vector,
     @eval begin
         function wrap{N}(s::DenseVariableSpace{$T,N}, a::DenseArray{$T,N})
             assert(size(a) == size(s))
-            ptr = ccall(($wrap, opklib), Ptr{Void},
-                        (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
+            ptr = ccall(($(string(wrap)), opklib), Ptr{Void},
+                        (Ptr{Void}, Ptr{$T}, Ptr{Void}, Ptr{Void}),
                         s.handle, a, C_NULL, C_NULL)
             systemerror("failed to wrap vector", ptr == C_NULL)
             obj = DenseVariable{$T,N}(ptr, s, a)
@@ -215,8 +215,8 @@ for (T, wrap, rewrap) in ((Cfloat, :opk_wrap_simple_float_vector,
         function wrap!{N}(v::DenseVariable{$T,N}, a::DenseArray{$T,N})
             assert(size(a) == size(v))
             assert(v.array != nothing)
-            status = ccall(($rewrap, opklib), Cint,
-                           (Ptr{Void}, Ptr{Cfloat}, Ptr{Void}, Ptr{Void}),
+            status = ccall(($(string(rewrap)), opklib), Cint,
+                           (Ptr{Void}, Ptr{$T}, Ptr{Void}, Ptr{Void}),
                            v.handle, a, C_NULL, C_NULL)
             systemerror("failed to re-wrap vector", status != SUCCESS)
             v.array = a
@@ -340,14 +340,12 @@ end
 
 abstract Operator <: Object
 
-for (jf, cf) in ((:apply_direct!, :opk_apply_direct),
-                 (:apply_adoint!, :opk_apply_adjoint),
-                 (:apply_inverse!, :opk_apply_inverse))
+for s in (:apply_direct, :apply_adoint, :apply_inverse)
     @eval begin
-        function $jf(op::Operator,
-                     dst::Variable,
-                     src::Variable)
-            status = ccall(($cf, opklib), Cint,
+        function $(Symbol(string(s)*"!"))(op::Operator,
+                                          dst::Variable,
+                                          src::Variable)
+            status = ccall(($("opk_"*string(s)), opklib), Cint,
                            (Ptr{Void},Ptr{Void},Ptr{Void}),
                            op.handle, dst.handle, src.handle)
             if status != SUCCESS
@@ -514,8 +512,7 @@ type NLCGoptions <: Options
             convert(Cdouble, grtol),
             convert(Cdouble, stpmin),
             convert(Cdouble, stpmax),
-            convert(Cptrdiff_t, mem),
-            convert(Cint, scaling))
+            convert(Cptrdiff_t, method))
     end
     NLCGoptions(method::Integer) = new(convert(UInt, method))
 end
@@ -531,18 +528,18 @@ type NLCG <: Optimizer
     space::VariableSpace
     method::Cuint
     lnsrch::LineSearch
-    function NLCG(space::VariableSpace,
-                  options::NLCGoptions,
+    function NLCG(options::NLCGoptions,
+                  space::VariableSpace,
                   lnsrch::LineSearch)
         ptr = ccall((:opk_new_nlcg_optimizer_with_line_search, opklib),
                     Ptr{Void}, (Ptr{Void}, Cuint, Ptr{Void}),
                     space.handle, options.method, lnsrch.handle)
         systemerror("failed to create optimizer", ptr == C_NULL)
-        obj = new(ptr, space, method, lnsrch)
+        obj = new(ptr, space, options.method, lnsrch)
         finalizer(obj, obj -> __drop_object__(obj.handle))
-        set_gatol!(opt, options.gatol)
-        set_grtol!(opt, options.grtol)
-        set_stpmin_and_stpmax!(opt, options.stpmin, options.stpmax)
+        set_gatol!(obj, options.gatol)
+        set_grtol!(obj, options.grtol)
+        set_stpmin_and_stpmax!(obj, options.stpmin, options.stpmax)
         return obj
     end
 end
@@ -582,8 +579,8 @@ type VMLM <: Optimizer
     space::VariableSpace
     mem::Cptrdiff_t
     lnsrch::LineSearch
-    function VMLM(space::VariableSpace,
-                  options::VMLMoptions,
+    function VMLM(options::VMLMoptions,
+                  space::VariableSpace,
                   lnsrch::LineSearch)
         mem = options.mem
         mem ≥ 1 || error("illegal number of memorized steps")
@@ -595,10 +592,10 @@ type VMLM <: Optimizer
         systemerror("failed to create optimizer", ptr == C_NULL)
         obj = new(ptr, space, mem, lnsrch)
         finalizer(obj, obj -> __drop_object__(obj.handle))
-        set_gatol!(opt, options.gatol)
-        set_grtol!(opt, options.grtol)
-        set_stpmin_and_stpmax!(opt, options.stpmin, options.stpmax)
-        set_scaling!(opt, options.scaling)
+        set_gatol!(obj, options.gatol)
+        set_grtol!(obj, options.grtol)
+        set_stpmin_and_stpmax!(obj, options.stpmin, options.stpmax)
+        set_scaling!(obj, options.scaling)
         return obj
     end
 end
@@ -629,35 +626,35 @@ for (T, start, iterate,
                                  :opk_set_vmlm_stpmin_and_stpmax))
     @eval begin
 
-        start!(opt::$T) = ccall(($start, opklib), Cint,
+        start!(opt::$T) = ccall(($(string(start)), opklib), Cint,
                                   (Ptr{Void},), opt.handle)
 
         function iterate!(opt::$T, x::Variable, f::Real, g::Variable)
-            ccall(($iterate, opklib), Cint,
+            ccall(($(string(iterate)), opklib), Cint,
                   (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
                   opt.handle, x.handle, f, g.handle)
         end
 
-        get_task(opt::$T) = ccall(($get_task, opklib),
+        get_task(opt::$T) = ccall(($(string(get_task)), opklib),
                                     Cint, (Ptr{Void},), opt.handle)
 
-        iterations(opt::$T) = ccall(($get_iterations, opklib),
+        iterations(opt::$T) = ccall(($(string(get_iterations)), opklib),
                                     Cptrdiff_t, (Ptr{Void},), opt.handle)
 
-        evaluations(opt::$T) = ccall(($get_evaluations, opklib),
+        evaluations(opt::$T) = ccall(($(string(get_evaluations)), opklib),
                                      Cptrdiff_t, (Ptr{Void},), opt.handle)
 
-        restarts(opt::$T) = ccall(($get_restarts, opklib),
+        restarts(opt::$T) = ccall(($(string(get_restarts)), opklib),
                                   Cptrdiff_t, (Ptr{Void},), opt.handle)
 
-        get_gatol(opt::$T) = ccall(($get_gatol, opklib),
+        get_gatol(opt::$T) = ccall(($(string(get_gatol)), opklib),
                                    Cdouble, (Ptr{Void},), opt.handle)
 
-        get_grtol(opt::$T) = ccall(($get_grtol, opklib),
+        get_grtol(opt::$T) = ccall(($(string(get_grtol)), opklib),
                                    Cdouble, (Ptr{Void},), opt.handle)
 
         function set_gatol!(opt::$T, gatol::Real)
-            if ccall(($set_gatol, opklib),
+            if ccall(($(string(set_gatol)), opklib),
                      Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
                 e = errno()
                 if e == Base.EINVAL
@@ -669,7 +666,7 @@ for (T, start, iterate,
         end
 
         function set_grtol!(opt::$T, grtol::Real)
-            if ccall(($set_grtol, opklib),
+            if ccall(($(string(set_grtol)), opklib),
                      Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
                 e = errno()
                 if e == Base.EINVAL
@@ -680,14 +677,14 @@ for (T, start, iterate,
             end
         end
 
-        get_stpmin(opt::$T) = ccall(($get_stpmin, opklib),
+        get_stpmin(opt::$T) = ccall(($(string(get_stpmin)), opklib),
                                     Cdouble, (Ptr{Void},), opt.handle)
 
-        get_stpmax(opt::$T) = ccall(($get_stpmax, opklib),
+        get_stpmax(opt::$T) = ccall(($(string(get_stpmax)), opklib),
                                     Cdouble, (Ptr{Void},), opt.handle)
 
         function set_stpmin_and_stpmax!(opt::$T, stpmin::Real, stpmax::Real)
-            if ccall(($set_stpmin_and_stpmax, opklib),
+            if ccall(($(string(set_stpmin_and_stpmax)), opklib),
                      Cint, (Ptr{Void},Cdouble,Cdouble),
                      opt.handle, stpmin, stpmax) != SUCCESS
                 e = errno()
@@ -811,11 +808,10 @@ function nlcg{T<:Float,N}(fg!::Function, x0::DenseArray{T,N},
                           maxeval::Integer=-1, maxiter::Integer=-1,
                           verb::Bool=false, debug::Bool=false)
     # Create an optimizer and solve the problem.
-    dims = size(x0)
-    space = DenseVariableSpace(T, dims)
+    space = DenseVariableSpace(T, size(x0))
     options = NLCGoptions(gatol=gatol, grtol=grtol, stpmin=stpmin,
                           stpmax=stpmax, method=method)
-    opt = NLCG(space, options, lnsrch)
+    opt = NLCG(options, space, lnsrch)
     solve(opt, fg!, x0, maxeval=maxeval, maxiter=maxiter,
           verb=verb, debug=debug)
 end
@@ -856,12 +852,12 @@ function vmlm{T<:Float,N}(fg!::Function, x0::DenseArray{T,N},
     options = VMLMoptions(gatol=gatol, grtol=grtol, stpmin=stpmin,
                           stpmax=stpmax, mem=mem, scaling=scaling)
     space = DenseVariableSpace(T, size(x0))
-    opt = VMLM(space, options, lnsrch)
+    opt = VMLM(options, space, lnsrch)
     solve(opt, fg!, x0, maxeval=maxeval, maxiter=maxiter,
           verb=verb, debug=debug)
 end
 
-function solve(opt::Optimizer, fg!::Function, x0::DenseArray{T,N};
+function solve(opt::Optimizer, fg!::Function, x0::DenseArray;
                maxeval::Integer=-1, maxiter::Integer=-1,
                verb::Bool=false, debug::Bool=false)
     if debug
@@ -872,7 +868,7 @@ function solve(opt::Optimizer, fg!::Function, x0::DenseArray{T,N};
     dims = size(x0)
     space = opt.space
     x = copy(x0)
-    g = Array(T, dims)
+    g = similar(x)
     wx = wrap(space, x)
     wg = wrap(space, g)
     task = start!(opt)
