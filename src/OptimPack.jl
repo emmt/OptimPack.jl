@@ -31,7 +31,7 @@ import Base.dot
 #else
 #    error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
 #end
-const opklib = "/home/eric/apps/lib/libopk.so.1.0.0"
+const opklib = joinpath(ENV["HOME"],"apps/lib/libopk.so.1.0.0")
 
 """
 `Float` is any floating point type supported by the library.
@@ -1061,11 +1061,12 @@ function solve(opt::LimitedMemoryOptimizer, fg!::Function, x0::DenseArray;
             if verb
                 if iter == 0
                     @printf("%s\n%s\n",
-                            " ITER   EVAL  RESTARTS         F(X)             ||G(X)||",
-                            "--------------------------------------------------------")
+                            " ITER   EVAL  RESTARTS          F(X)           ||G(X)||    STEP",
+                            "-----------------------------------------------------------------")
                 end
-                @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
-                        iter, eval, restarts(opt), f, get_gnorm(opt))
+                @printf("%5d  %5d  %5d  %24.16E %9.2E %9.2E\n",
+                        iter, eval, restarts(opt), f, get_gnorm(opt),
+                        get_step(opt))
             end
             if task == TASK_FINAL_X
                 return x
