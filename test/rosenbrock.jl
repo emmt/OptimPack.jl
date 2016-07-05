@@ -44,9 +44,14 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
                         #scaling=OptimPack.SCALING_OREN_SPEDICATO)
     @test_approx_eq_eps x2 ones(T,20) 1e-3
 
-    @printf("\nTesting VMLMB in %s precision with nonnegativity\n", prec)
-    x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, lower=0)
+    @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
+    x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, mem=15)
+                        #scaling=OptimPack.SCALING_OREN_SPEDICATO)
     @test_approx_eq_eps x3 ones(T,20) 1e-3
+
+    @printf("\nTesting VMLMB in %s precision with nonnegativity\n", prec)
+    x4 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, lower=0)
+    @test_approx_eq_eps x4 ones(T,20) 1e-3
 
     #@printf("\nTesting VMLM in %s precision with Barzilai & Borwein scaling\n", prec)
     #x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true,
