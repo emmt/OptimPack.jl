@@ -27,7 +27,8 @@ using OptimPack
 There are two methods in OptimPack to minimize a nonlinear smooth multivariate
 function without constraints: non-linear conjugate gradient (NLCG) implemented
 by `nlcg` and limited memory variable metric method (VMLM) implemented by
-`vmlm`.  In general, `vmlm` is more efficient than `nlcg`.
+`vmlm`.  In general, `vmlm` is more efficient than `nlcg` but may require more
+memory.
 
 The easiest way to use these minimizers is to provide a Julia function, say
 `fg!`, which is in charge of computing the value of the function and its
