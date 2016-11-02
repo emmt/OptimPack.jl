@@ -14,8 +14,10 @@ provides(Sources,
 
 prefix = joinpath(BinDeps.depsdir(optimpack), "usr")
 srcdir = joinpath(BinDeps.depsdir(optimpack), "src", unpacked_dir)
-@unix_only libfilename = "libopk.so"
-@osx_only libfilename = "libopk.dylib"
+@static if is_unix() libfilename = "libopk.so"
+end
+@static if is_apple() libfilename = "libopk.dylib"
+end
 destlib = joinpath(prefix, "lib", libfilename)
 
 provides(SimpleBuild,
