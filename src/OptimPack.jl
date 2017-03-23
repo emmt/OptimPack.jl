@@ -19,12 +19,7 @@ export nlcg, vmlmb, spg2
 export fzero, fmin, fmin_global
 
 # Functions must be imported to be extended with new methods.
-import Base.size
-import Base.length
-import Base.eltype
-import Base.ndims
-import Base.copy
-import Base.dot
+import Base: size, length, eltype, ndims, copy, dot
 
 #if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
 #    include("../deps/deps.jl")
@@ -300,7 +295,7 @@ and element type.
 """
 `wrap!(v, a)` rewraps the Julia array `a` into the variable `v` and returns
 `v`.  Array `a` must have the correct dimensions and element type.
-""" wrap
+""" wrap!
 
 #------------------------------------------------------------------------------
 # OPERATIONS ON VARIABLES (AS VECTORS)
@@ -622,9 +617,6 @@ for (jf, ct, cf) in ((:get_step,   Cdouble, :opk_lnsrch_get_step),
         $jf(ls::LineSearch) = ccall(($(string(cf)), opklib), $ct, (Ptr{Void}, ), ls)
     end
 end
-
-get_status(ls::LineSearch) = ccall((:opk_lnsrch_get_status, opklib),
-                                   Cint, (Ptr{Void}, ), ls)
 
 for (jf, cf) in ((:has_errors,   :opk_lnsrch_has_errors),
                  (:has_warnings, :opk_lnsrch_has_warnings),
