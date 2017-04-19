@@ -1,36 +1,34 @@
 #
 # OptimPack.jl --
 #
-# Optimization for Julia.
+# Julia wrapper for OptimPack.
 #
 # ----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License:
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License:
 #
-# Copyright (C) 2014-2016, Éric Thiébaut.
+# Copyright (C) 2014-2017, Éric Thiébaut.
 #
 # ----------------------------------------------------------------------------
+
+isdefined(Base, :__precompile__) && __precompile__()
 
 module OptimPack
 
-export nlcg, vmlm, spg2
+export nlcg, vmlmb, spg2
 
 export fzero, fmin, fmin_global
 
 # Functions must be imported to be extended with new methods.
-import Base.size
-import Base.length
-import Base.eltype
-import Base.ndims
-import Base.copy
-import Base.dot
+import Base: size, length, eltype, ndims, copy, dot
 
-if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include("../deps/deps.jl")
-else
-    error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
-end
+#if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+#    include("../deps/deps.jl")
+#else
+#    error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
+#end
+const opklib = joinpath(ENV["HOME"],"apps/lib/libopk.so.1.0.0")
 
 """
 `Float` is any floating point type supported by the library.
@@ -40,8 +38,65 @@ typealias Float Union{Cfloat,Cdouble}
 cint(i::Integer) = convert(Cint, i)
 cuint(i::Integer) = convert(Cuint, i)
 
-const SUCCESS = cint( 0)
-const FAILURE = cint(-1)
+#------------------------------------------------------------------------------
+# CONSTANTS
+
+"""
+OptimPack Constants
+===================
+`get_constant(name)` yields the value of an OptimPack constant `name`.
+"""
+
+function get_constant(name::AbstractString)
+    value = Ref{Clong}(0)
+    status = ccall((:opk_get_integer_constant, opklib), Cint,
+                   (Cstring, Ref{Clong}), name, value)
+    status == 0 || throw(ArgumentError("unknown OptimPack constant \"$name\""))
+    cint(value[])
+end
+
+for sym in (# status
+            :SUCCESS, :INVALID_ARGUMENT, :INSUFFICIENT_MEMORY,
+            :ILLEGAL_ADDRESS, :NOT_IMPLEMENTED, :CORRUPTED_WORKSPACE,
+            :BAD_SPACE, :OUT_OF_BOUNDS_INDEX, :NOT_STARTED, :NOT_A_DESCENT,
+            :STEP_CHANGED, :STEP_OUTSIDE_BRACKET, :STPMIN_GT_STPMAX,
+            :STPMIN_LT_ZERO, :STEP_LT_STPMIN, :STEP_GT_STPMAX,
+            :FTOL_TEST_SATISFIED, :GTOL_TEST_SATISFIED, :XTOL_TEST_SATISFIED,
+            :STEP_EQ_STPMAX, :STEP_EQ_STPMIN,
+            :ROUNDING_ERRORS_PREVENT_PROGRESS, :NOT_POSITIVE_DEFINITE,
+            :BAD_PRECONDITIONER, :INFEASIBLE_BOUNDS, :WOULD_BLOCK,
+            :UNDEFINED_VALUE, :TOO_MANY_EVALUATIONS, :TOO_MANY_ITERATIONS,
+            # boolean
+            :TRUE, :FALSE,
+            # data type
+            :FLOAT, :DOUBLE,
+            # reverse communication task
+            :TASK_ERROR, :TASK_START, :TASK_COMPUTE_FG, :TASK_NEW_X,
+            :TASK_FINAL_X, :TASK_WARNING,
+            # line search
+            :LNSRCH_ERROR, :LNSRCH_SEARCH, :LNSRCH_CONVERGENCE,
+            :LNSRCH_WARNING,
+            # nonlinear conjugate gradient
+            :NLCG_FLETCHER_REEVES, :NLCG_HESTENES_STIEFEL,
+            :NLCG_POLAK_RIBIERE_POLYAK, :NLCG_FLETCHER, :NLCG_LIU_STOREY,
+            :NLCG_DAI_YUAN, :NLCG_PERRY_SHANNO, :NLCG_HAGER_ZHANG,
+            :NLCG_POWELL, :NLCG_SHANNO_PHUA,
+            # bounds
+            :BOUND_NONE, :BOUND_SCALAR_FLOAT, :BOUND_SCALAR_DOUBLE,
+            :BOUND_STATIC_FLOAT, :BOUND_STATIC_DOUBLE, :BOUND_VOLATILE_FLOAT,
+            :BOUND_VOLATILE_DOUBLE, :BOUND_VECTOR,
+            # search direction
+            :ASCENT, :DESCENT,
+            # initial inverse Hessian approximation
+            :SCALING_NONE, :SCALING_OREN_SPEDICATO, :SCALING_BARZILAI_BORWEIN,
+            # algorithm
+            :ALGORITHM_NLCG, :ALGORITHM_VMLMB)
+    let name = "OPK_"*string(sym)
+        @eval begin
+            const $sym = get_constant($name)
+        end
+    end
+end
 
 #------------------------------------------------------------------------------
 # ERROR MANAGEMENT
@@ -61,6 +116,16 @@ function __init__()
 end
 
 __init__()
+
+"""
+`get_reason(s)` yields the textual reason for status `s`.
+"""
+function get_reason(s::Integer)
+    val = ccall((:opk_get_reason, opklib), Ptr{UInt8}, (Cint,), s)
+    val == C_NULL ? "" : bytestring(val)
+end
+
+guess_status() = ccall((:opk_guess_status, opklib), Cint, ())
 
 #------------------------------------------------------------------------------
 # OBJECT MANAGEMENT
@@ -158,7 +223,6 @@ for (T, f) in ((Cfloat, :opk_new_simple_float_vector_space),
     end
 end
 
-
 #------------------------------------------------------------------------------
 # VARIABLES
 
@@ -166,7 +230,8 @@ abstract Variable <: Object
 """
 Variables
 =========
-Abstract type `Variable` correspond to *vectors* (type `opk_vector_t`) in OptimPack.
+Abstract type `Variable` correspond to *vectors* (type `opk_vector_t`) in
+OptimPack.
 """
 
 # Note: There are no needs to register a reference for the owner of a
@@ -182,9 +247,9 @@ eltype(v::DenseVariable) = eltype(v.owner)
 size(v::DenseVariable) = size(v.owner)
 size(v::DenseVariable, n::Integer) = size(v.owner, n)
 ndims(v::DenseVariable) = ndims(v.owner)
+owner(v::DenseVector) = v.owner
+__handle__(v::DenseVector) = v.handle
 
-# FIXME: add means to wrap a Julia array around this or (better?, simpler?)
-#        just use allocate a Julia array and wrap a vector around it?
 """
 `v = create(s)` creates a new variable of the variable space `s`.
 """
@@ -196,15 +261,13 @@ function create{T<:Float,N<:Integer}(space::DenseVariableSpace{T,N})
     return obj
 end
 
-for (T, wrap, rewrap) in ((Cfloat, :opk_wrap_simple_float_vector,
-                           :opk_rewrap_simple_float_vector),
-                          (Cdouble, :opk_wrap_simple_double_vector,
-                           :opk_rewrap_simple_double_vector))
+for (T, ctype) in ((Cfloat, "float"),
+                   (Cdouble, "double"))
     @eval begin
         function wrap{N}(s::DenseVariableSpace{$T,N}, a::DenseArray{$T,N})
             assert(size(a) == size(s))
-            ptr = ccall(($(string(wrap)), opklib), Ptr{Void},
-                        (Ptr{Void}, Ptr{$T}, Ptr{Void}, Ptr{Void}),
+            ptr = ccall(($("opk_wrap_simple_"*ctype*"_vector"), opklib),
+                        Ptr{Void}, (Ptr{Void}, Ptr{$T}, Ptr{Void}, Ptr{Void}),
                         s.handle, a, C_NULL, C_NULL)
             systemerror("failed to wrap vector", ptr == C_NULL)
             obj = DenseVariable{$T,N}(ptr, s, a)
@@ -215,8 +278,8 @@ for (T, wrap, rewrap) in ((Cfloat, :opk_wrap_simple_float_vector,
         function wrap!{N}(v::DenseVariable{$T,N}, a::DenseArray{$T,N})
             assert(size(a) == size(v))
             assert(v.array != nothing)
-            status = ccall(($(string(rewrap)), opklib), Cint,
-                           (Ptr{Void}, Ptr{$T}, Ptr{Void}, Ptr{Void}),
+            status = ccall(($("opk_rewrap_simple_"*ctype*"_vector"), opklib),
+                           Cint, (Ptr{Void}, Ptr{$T}, Ptr{Void}, Ptr{Void}),
                            v.handle, a, C_NULL, C_NULL)
             systemerror("failed to re-wrap vector", status != SUCCESS)
             v.array = a
@@ -234,10 +297,10 @@ and element type.
 """
 `wrap!(v, a)` rewraps the Julia array `a` into the variable `v` and returns
 `v`.  Array `a` must have the correct dimensions and element type.
-""" wrap
+""" wrap!
 
 #------------------------------------------------------------------------------
-# OPERATIONS ON VARIABLES
+# OPERATIONS ON VARIABLES (AS VECTORS)
 
 """
 `norm1(v)` returns the L1 norm (sum of absolute values) ov *variables* `v`.
@@ -340,18 +403,138 @@ end
 
 abstract Operator <: Object
 
-for s in (:apply_direct, :apply_adoint, :apply_inverse)
+for (jf, cf) in ((:apply_direct!, :opk_apply_direct),
+                 (:apply_adoint!, :opk_apply_adjoint),
+                 (:apply_inverse!, :opk_apply_inverse))
     @eval begin
-        function $(Symbol(string(s)*"!"))(op::Operator,
-                                          dst::Variable,
-                                          src::Variable)
-            status = ccall(($("opk_"*string(s)), opklib), Cint,
+        function $jf(op::Operator,
+                     dst::Variable,
+                     src::Variable)
+            status = ccall(($(string(cf)), opklib), Cint,
                            (Ptr{Void},Ptr{Void},Ptr{Void}),
                            op.handle, dst.handle, src.handle)
             if status != SUCCESS
                 error("something wrong happens")
             end
             nothing
+        end
+    end
+end
+
+#------------------------------------------------------------------------------
+# CONVEX SETS
+
+abstract ConvexSet <: Object
+
+function checkbound(name::AbstractString, b::Variable, space::VariableSpace)
+    if owner(b) != space
+        throw(ArgumentError(name *
+                            " must belong to the same space as the variables"))
+    end
+    return (b, BOUND_VECTOR, __handle__(b))
+end
+
+function checkbound(name::AbstractString, b::Real, space::VariableSpace)
+    return checkbound(name, convert(Cdouble, b), space)
+end
+
+function checkbound(name::AbstractString, b::Cfloat, space::VariableSpace)
+    return (b, BOUND_SCALAR_FLOAT, [b])
+end
+
+function checkbound(name::AbstractString, b::Cdouble, space::VariableSpace)
+    return (b, BOUND_SCALAR_DOUBLE, [b])
+end
+
+function checkbound(::AbstractString, ::Void, ::VariableSpace)
+    return (nothing, BOUND_NONE, C_NULL)
+end
+
+for (T, boundtype) in ((Cfloat, BOUND_STATIC_FLOAT),
+                       (Cdouble, BOUND_STATIC_DOUBLE))
+    @eval begin
+        function checkbound{N}(name::AbstractString, b::Array{$T,N},
+                               space::DenseVariableSpace{$T,N})
+            if size(b) != size(space)
+                throw(ArgumentError(name *
+                                    " must have the same size as the variables"))
+            end
+            return (b, $boundtype, b)
+        end
+    end
+end
+
+type BoxedSet <: ConvexSet
+    handle::Ptr{Void}
+    space::VariableSpace
+    lower::Any
+    upper::Any
+    function BoxedSet(space::VariableSpace,
+                      lower, lower_type::Cint, lower_addr,
+                      upper, upper_type::Cint, upper_addr)
+        ptr = ccall((:opk_new_boxset, opklib), Ptr{Void},
+                    (Ptr{Void}, Cint, Ptr{Void}, Cint, Ptr{Void}),
+                    space.handle,
+                    lower_type, lower_addr,
+                    upper_type, upper_addr)
+        systemerror("failed to create linesearch", ptr == C_NULL)
+        obj = new(ptr, space, lower, upper)
+        finalizer(obj, obj -> __drop_object__(obj.handle))
+        return obj
+    end
+end
+
+function BoxedSet(space::VariableSpace, lower, upper)
+    (lo_value, lo_type, lo_addr) = checkbound("lower bound", lower, space)
+    (up_value, up_type, up_addr) = checkbound("upper bound", upper, space)
+    return BoxedSet(space,
+                    lo_value, lo_type, lo_addr,
+                    up_value, up_type, up_addr);
+end
+
+
+#for f in (:project_direction, :get_free_variables)
+#    let name = string(f), f! = Symbol(name*"!"), cf = Symbol("opk_"*name)
+#        @eval begin
+#            function $f(x::Variable, set::ConvexSet,
+#                        d::Variable, orient::integer)
+#                dst = create(owner(x))
+#                $f!(dst, x, set, d, orient)
+#                return dst
+#            end
+#            function $f!(dst::Variable, x::Variable, set::ConvexSet,
+#                         d::Variable, orient::integer)
+#                status = ccall(($(string(cf)), opklib), Cint,
+#                               (Ptr{Void}, Ptr{Void}, Ptr{Void},
+#                                Ptr{Void}, Cint),
+#                               dst.handle, x.handle, set.handle,
+#                               d.handle, orient)
+#                status == SUCCESS || error(get_reason(status))
+#            end
+#        end
+#    end
+#end
+#
+#function get_step_limits(x::Variable, set::ConvexSet, d::Variable,
+#                         orient::integer)
+#    smin1 = Ref{Cdouble}(0)
+#    smin2 = Ref{Cdouble}(0)
+#    smax  = Ref{Cdouble}(0)
+#    status = ccall((:opk_get_step_limits, opklib), Cint,
+#                   (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
+#                    Ptr{Void}, Ptr{Void}, Ptr{Void}, Cint),
+#                   smin1, smin2, smax, x.handle, set.handle, d.handle, orient)
+#    status == SUCCESS || error(get_reason(status))
+#    return (smin1[], smin2[], smax[])
+#end
+
+for f in (:can_project_direction,
+          :can_get_free_variables,
+          :can_get_step_limits)
+    @eval begin
+        function $f(set::ConvexSet)
+            ccall(($("opk_"*string(f)), opklib), Cint, (Ptr{Void},),
+                  set.handle) != 0
         end
     end
 end
@@ -413,30 +596,11 @@ type NonmonotoneLineSearch <: LineSearch
     end
 end
 
-const LNSRCH_ERROR_ILLEGAL_ADDRESS                    = cint(-12)
-const LNSRCH_ERROR_CORRUPTED_WORKSPACE                = cint(-11)
-const LNSRCH_ERROR_BAD_WORKSPACE                      = cint(-10)
-const LNSRCH_ERROR_STP_CHANGED                        = cint( -9)
-const LNSRCH_ERROR_STP_OUTSIDE_BRACKET                = cint( -8)
-const LNSRCH_ERROR_NOT_A_DESCENT                      = cint( -7)
-const LNSRCH_ERROR_STPMIN_GT_STPMAX                   = cint( -6)
-const LNSRCH_ERROR_STPMIN_LT_ZERO                     = cint( -5)
-const LNSRCH_ERROR_STP_LT_STPMIN                      = cint( -4)
-const LNSRCH_ERROR_STP_GT_STPMAX                      = cint( -3)
-const LNSRCH_ERROR_INITIAL_DERIVATIVE_GE_ZERO         = cint( -2)
-const LNSRCH_ERROR_NOT_STARTED                        = cint( -1)
-const LNSRCH_SEARCH                                   = cint(  0)
-const LNSRCH_CONVERGENCE                              = cint(  1)
-const LNSRCH_WARNING_ROUNDING_ERRORS_PREVENT_PROGRESS = cint(  2)
-const LNSRCH_WARNING_XTOL_TEST_SATISFIED              = cint(  3)
-const LNSRCH_WARNING_STP_EQ_STPMAX                    = cint(  4)
-const LNSRCH_WARNING_STP_EQ_STPMIN                    = cint(  5)
-
-function start!(ls::LineSearch, f0::Real, df0::Real,
-                stp1::Real, stpmin::Real, stpmax::Real)
+function start!(ls::LineSearch, f::Real, df::Real,
+                stp::Real, stpmin::Real, stpmax::Real)
     ccall((:opk_lnsrch_start, opklib), Cint,
           (Ptr{Void}, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
-          ls, f0, df0, stp1, stpmin, stpmax)
+          ls, f, df, stp, stpmin, stpmax)
 end
 
 function iterate!(ls::LineSearch, stp::Real, f::Real, df::Real)
@@ -447,74 +611,194 @@ function iterate!(ls::LineSearch, stp::Real, f::Real, df::Real)
     return (task, _stp[1])
 end
 
-get_step(ls::LineSearch) = ccall((:opk_lnsrch_get_step, opklib),
-                                 Cdouble, (Ptr{Void}, ), ls)
-get_status(ls::LineSearch) = ccall((:opk_lnsrch_get_status, opklib),
-                                   Cint, (Ptr{Void}, ), ls)
-has_errors(ls::LineSearch) = (ccall((:opk_lnsrch_has_errors, opklib),
-                                    Cint, (Ptr{Void}, ), ls) != 0)
-has_warnings(ls::LineSearch) = (ccall((:opk_lnsrch_has_warnings, opklib),
-                                      Cint, (Ptr{Void}, ), ls) != 0)
-converged(ls::LineSearch) = (ccall((:opk_lnsrch_converged, opklib),
-                                   Cint, (Ptr{Void}, ), ls) != 0)
-finished(ls::LineSearch) = (ccall((:opk_lnsrch_finished, opklib),
-                                  Cint, (Ptr{Void}, ), ls) != 0)
+for (jf, ct, cf) in ((:get_step,   Cdouble, :opk_lnsrch_get_step),
+                     (:get_task,   Cint,    :opk_lnsrch_get_task),
+                     (:get_status, Cint,    :opk_lnsrch_get_status))
+
+    @eval begin
+        $jf(ls::LineSearch) = ccall(($(string(cf)), opklib), $ct, (Ptr{Void}, ), ls)
+    end
+end
+
+for (jf, cf) in ((:has_errors,   :opk_lnsrch_has_errors),
+                 (:has_warnings, :opk_lnsrch_has_warnings),
+                 (:converged,    :opk_lnsrch_converged),
+                 (:finished,     :opk_lnsrch_finished),
+                 (:use_deriv,    :opk_lnsrch_use_deriv))
+    @eval begin
+        $jf(ls::LineSearch) = (ccall(($(string(cf)), opklib), Cint,
+                                     (Ptr{Void},), ls) != 0)
+    end
+end
+
 get_ftol(ls::LineSearch) = ls.ftol
 get_gtol(ls::MoreThuenteLineSearch) = ls.gtol
 get_xtol(ls::MoreThuenteLineSearch) = ls.xtol
 
 
 #------------------------------------------------------------------------------
-# NON LINEAR OPTIMIZERS
+# NON LINEAR LIMITED-MEMORY OPTIMIZERS
 
-# Codes returned by the reverse communication version of optimzation
-# algorithms.
+abstract LimitedMemoryOptimizer <: Object
 
-const TASK_ERROR       = cint(-1) # An error has ocurred.
-const TASK_PROJECT_X   = cint( 0) # Caller must project variables x.
-const TASK_COMPUTE_FG  = cint( 1) # Caller must compute f(x) and g(x).
-const TASK_PROJECT_D   = cint( 2) # Caller must project the direction d.
-const TASK_FREE_VARS   = cint( 3) # Caller must update the subspace of free variables.
-const TASK_NEW_X       = cint( 4) # A new iterate is available.
-const TASK_FINAL_X     = cint( 5) # Algorithm has converged, solution is available.
-const TASK_WARNING     = cint( 6) # Algorithm terminated with a warning.
+abstract LimitedMemoryOptimizerOptions
 
-abstract Optimizer <: Object
-abstract Options
+abstract LimitedMemoryOptimizerDriver <: LimitedMemoryOptimizer
 
+type VMLMBoptions <: LimitedMemoryOptimizerOptions
+    # Relative size for a small step.
+    delta::Cdouble
 
-const NLCG_FLETCHER_REEVES        = cuint(1)
-const NLCG_HESTENES_STIEFEL       = cuint(2)
-const NLCG_POLAK_RIBIERE_POLYAK   = cuint(3)
-const NLCG_FLETCHER               = cuint(4)
-const NLCG_LIU_STOREY             = cuint(5)
-const NLCG_DAI_YUAN               = cuint(6)
-const NLCG_PERRY_SHANNO           = cuint(7)
-const NLCG_HAGER_ZHANG            = cuint(8)
-const NLCG_POWELL                 = cuint(1<<8) # force beta >= 0
-const NLCG_SHANNO_PHUA            = cuint(1<<9) # compute scale from previous iterations
+    # Threshold to accept descent direction.
+    epsilon::Cdouble
 
-# For instance: (NLCG_POLAK_RIBIERE_POLYAK | NLCG_POWELL) merely
-# corresponds to PRP+ (Polak, Ribiere, Polyak) while (NLCG_PERRY_SHANNO |
-# NLCG_SHANNO_PHUA) merely corresponds to the conjugate gradient method
-# implemented in CONMIN.
-
-type NLCGoptions <: Options
-    gatol::Cdouble
+    # Relative and absolute thresholds for the norm or the gradient for
+    # convergence.
     grtol::Cdouble
+    gatol::Cdouble
+
+    # Relative minimum and maximum step length.
     stpmin::Cdouble
     stpmax::Cdouble
-    method::UInt
-    function NLCGoptions(;gatol::Real=0.0, grtol::Real=1E-6,
-                         stpmin::Real=1E-20, stpmax::Real=1E+20,
-                         method::Integer=(NLCG_HAGER_ZHANG|NLCG_SHANNO_PHUA))
-        new(convert(Cdouble, gatol),
-            convert(Cdouble, grtol),
-            convert(Cdouble, stpmin),
-            convert(Cdouble, stpmax),
-            convert(Cptrdiff_t, method))
+
+    # Maximum number of memorized steps.
+    mem::Cptrdiff_t
+
+    # Emulate Benson & Moré BLMVM method?
+    blmvm::Cint
+
+    # Save some memory?
+    savemem::Cint
+
+    function VMLMBoptions(;
+                          delta::Union{Real,Void}=nothing,
+                          epsilon::Union{Real,Void}=nothing,
+                          gatol::Union{Real,Void}=nothing,
+                          grtol::Union{Real,Void}=nothing,
+                          stpmin::Union{Real,Void}=nothing,
+                          stpmax::Union{Real,Void}=nothing,
+                          mem::Union{Integer,Void}=nothing,
+                          blmvm::Union{Bool,Void}=nothing,
+                          savemem::Union{Bool,Void}=nothing)
+        opts = new()
+        initialize!(opts)
+        if delta   != nothing; opts.delta   = delta;   end
+        if epsilon != nothing; opts.epsilon = epsilon; end
+        if gatol   != nothing; opts.gatol   = gatol;   end
+        if grtol   != nothing; opts.grtol   = grtol;   end
+        if stpmin  != nothing; opts.stpmin  = stpmin;  end
+        if stpmax  != nothing; opts.stpmax  = stpmax;  end
+        if mem     != nothing; opts.mem     = mem;     end
+        if blmvm   != nothing; opts.blmvm   = (blmvm   ? 1 : 0); end
+        if savemem != nothing; opts.savemem = (savemem ? 1 : 0); end
+        check(opts)
+        return opts
     end
-    NLCGoptions(method::Integer) = new(convert(UInt, method))
+
+end
+
+type NLCGoptions <: LimitedMemoryOptimizerOptions
+    # Relative size for a small step.
+    delta::Cdouble
+
+    # Threshold to accept descent direction.
+    epsilon::Cdouble
+
+    # Relative and absolute thresholds for the norm or the gradient for
+    # convergence.
+    grtol::Cdouble
+    gatol::Cdouble
+
+    # Relative minimum and maximum step length.
+    stpmin::Cdouble
+    stpmax::Cdouble
+
+    # Minimal function value if provided.
+    fmin::Cdouble
+
+    # A bitwise combination of the non-linear conjugate gradient update method
+    # and options.
+    flags::Cuint
+
+     # Minimal function value is provided?
+    fmin_given::Cint
+
+    function NLCGoptions(;
+                         delta::Union{Real,Void}=nothing,
+                         epsilon::Union{Real,Void}=nothing,
+                         gatol::Union{Real,Void}=nothing,
+                         grtol::Union{Real,Void}=nothing,
+                         stpmin::Union{Real,Void}=nothing,
+                         stpmax::Union{Real,Void}=nothing,
+                         fmin::Union{Real,Void}=nothing,
+                         flags::Union{Integer,Void}=nothing)
+        opts = new()
+        initialize!(opts)
+        if delta   != nothing; opts.delta   = delta;   end
+        if epsilon != nothing; opts.epsilon = epsilon; end
+        if gatol   != nothing; opts.gatol   = gatol;   end
+        if grtol   != nothing; opts.grtol   = grtol;   end
+        if stpmin  != nothing; opts.stpmin  = stpmin;  end
+        if stpmax  != nothing; opts.stpmax  = stpmax;  end
+        if flags   != nothing; opts.flags   = flags;   end
+        if fmin != nothing
+            opts.fmin = fmin
+            opts.fmin_given = fmin_given
+        end
+        check(opts)
+        return opts
+    end
+end
+
+for (T, f1, f2) in ((VMLMBoptions,
+                     :opk_get_vmlmb_default_options,
+                     :opk_check_vmlmb_options),
+                    (NLCGoptions,
+                     :opk_get_nlcg_default_options,
+                     :opk_check_nlcg_options))
+    @eval begin
+        function initialize!(opts::$T)
+            ccall(($(string(f1)), opklib), Void, (Ptr{$T},), &opts)
+        end
+        function check(opts::$T)
+            status = ccall(($(string(f2)), opklib), Cint, (Ptr{$T},), &opts)
+            status == SUCCESS || throw(ArgumentError("bad option(s)"))
+        end
+    end
+end
+
+@doc "Set default parameters." initialize!
+@doc "Check options." check
+
+"""
+Default settings for non linear conjugate gradient (should correspond to the
+method which is, in general, the most successful).
+"""
+const VMLMB_DEFAULT = VMLMBoptions()
+
+type VMLMB <: LimitedMemoryOptimizer
+    handle::Ptr{Void}
+    options::VMLMBoptions
+    space::VariableSpace
+    lnsrch::LineSearch
+    box::Union{ConvexSet,Void}
+    function VMLMB(options::VMLMBoptions,
+                   space::VariableSpace,
+                   lnsrch::LineSearch,
+                   box::Union{ConvexSet,Void})
+        mem = options.mem
+        mem ≥ 1 || error("illegal number of memorized steps")
+        mem = min(mem, length(space))
+        box_handle =
+        ptr = ccall((:opk_new_vmlmb_optimizer, opklib), Ptr{Void},
+                    (Ptr{VMLMBoptions}, Ptr{Void}, Ptr{Void}, Ptr{Void}),
+                    &options, space.handle, lnsrch.handle,
+                    (box == nothing ? C_NULL : box.handle))
+        systemerror("failed to create optimizer", ptr == C_NULL)
+        obj = new(ptr, options, space, lnsrch, box)
+        finalizer(obj, obj -> __drop_object__(obj.handle))
+        return obj
+    end
 end
 
 """
@@ -523,177 +807,81 @@ method which is, in general, the most successful).
 """
 const NLCG_DEFAULT = NLCGoptions()
 
-type NLCG <: Optimizer
+type NLCG <: LimitedMemoryOptimizer
     handle::Ptr{Void}
+    options::NLCGoptions
     space::VariableSpace
-    method::Cuint
     lnsrch::LineSearch
     function NLCG(options::NLCGoptions,
                   space::VariableSpace,
                   lnsrch::LineSearch)
-        ptr = ccall((:opk_new_nlcg_optimizer_with_line_search, opklib),
-                    Ptr{Void}, (Ptr{Void}, Cuint, Ptr{Void}),
-                    space.handle, options.method, lnsrch.handle)
+        ptr = ccall((:opk_new_nlcg_optimizer, opklib), Ptr{Void},
+                    (Ptr{NLCGoptions}, Ptr{Void}, Ptr{Void}),
+                    &options, space.handle, lnsrch.handle)
         systemerror("failed to create optimizer", ptr == C_NULL)
-        obj = new(ptr, space, options.method, lnsrch)
+        obj = new(ptr, options, space, lnsrch)
         finalizer(obj, obj -> __drop_object__(obj.handle))
-        set_gatol!(obj, options.gatol)
-        set_grtol!(obj, options.grtol)
-        set_stpmin_and_stpmax!(obj, options.stpmin, options.stpmax)
         return obj
     end
 end
 
-const SCALING_NONE             = cint(0)
-const SCALING_OREN_SPEDICATO   = cint(1) # gamma = <s,y>/<y,y>
-const SCALING_BARZILAI_BORWEIN = cint(2) # gamma = <s,s>/<s,y>
-
-type VMLMoptions <: Options
-    gatol::Cdouble
-    grtol::Cdouble
-    stpmin::Cdouble
-    stpmax::Cdouble
-    mem::Cptrdiff_t
-    scaling::Cint
-    function VMLMoptions(;gatol::Real=0.0, grtol::Real=1E-6,
-                         stpmin::Real=1E-20, stpmax::Real=1E+20,
-                         mem::Integer=3,
-                         scaling::Integer=SCALING_OREN_SPEDICATO)
-        new(convert(Cdouble, gatol),
-            convert(Cdouble, grtol),
-            convert(Cdouble, stpmin),
-            convert(Cdouble, stpmax),
-            convert(Cptrdiff_t, mem),
-            convert(Cint, scaling))
-    end
-end
-
-"""
-Default settings for non linear conjugate gradient (should correspond to the
-method which is, in general, the most successful).
-"""
-const VMLM_DEFAULT = VMLMoptions()
-
-type VMLM <: Optimizer
-    handle::Ptr{Void}
-    space::VariableSpace
-    mem::Cptrdiff_t
-    lnsrch::LineSearch
-    function VMLM(options::VMLMoptions,
-                  space::VariableSpace,
-                  lnsrch::LineSearch)
-        mem = options.mem
-        mem ≥ 1 || error("illegal number of memorized steps")
-        mem = min(mem, length(space))
-        ptr = ccall((:opk_new_vmlm_optimizer_with_line_search, opklib),
-                    Ptr{Void}, (Ptr{Void}, Cptrdiff_t, Ptr{Void},
-                                Cdouble, Cdouble, Cdouble),
-                    space.handle, mem, lnsrch.handle, 0.0, 0.0, 0.0)
-        systemerror("failed to create optimizer", ptr == C_NULL)
-        obj = new(ptr, space, mem, lnsrch)
-        finalizer(obj, obj -> __drop_object__(obj.handle))
-        set_gatol!(obj, options.gatol)
-        set_grtol!(obj, options.grtol)
-        set_stpmin_and_stpmax!(obj, options.stpmin, options.stpmax)
-        set_scaling!(obj, options.scaling)
-        return obj
-    end
-end
-
-for (T, start, iterate,
-     get_task,
-     get_iterations,
-     get_evaluations,
-     get_restarts,
-     get_gatol, get_grtol,
-     set_gatol, set_grtol,
-     get_stpmin, get_stpmax,
-     set_stpmin_and_stpmax) in ((NLCG, :opk_start_nlcg, :opk_iterate_nlcg,
-                                 :opk_get_nlcg_task, :opk_get_nlcg_iterations,
-                                 :opk_get_nlcg_evaluations,
-                                 :opk_get_nlcg_restarts,
-                                 :opk_get_nlcg_gatol, :opk_get_nlcg_grtol,
-                                 :opk_set_nlcg_gatol, :opk_set_nlcg_grtol,
-                                 :opk_get_nlcg_stpmin, :opk_get_nlcg_stpmax,
-                                 :opk_set_nlcg_stpmin_and_stpmax),
-                                (VMLM, :opk_start_vmlm, :opk_iterate_vmlm,
-                                 :opk_get_vmlm_task, :opk_get_vmlm_iterations,
-                                 :opk_get_vmlm_evaluations,
-                                 :opk_get_vmlm_restarts,
-                                 :opk_get_vmlm_gatol, :opk_get_vmlm_grtol,
-                                 :opk_set_vmlm_gatol, :opk_set_vmlm_grtol,
-                                 :opk_get_vmlm_stpmin, :opk_get_vmlm_stpmax,
-                                 :opk_set_vmlm_stpmin_and_stpmax))
+for (T, sfx) in ((LimitedMemoryOptimizerDriver, ""),
+                 (NLCG, "_nlcg"), (VMLMB, "_vmlmb"))
     @eval begin
 
-        start!(opt::$T) = ccall(($(string(start)), opklib), Cint,
-                                  (Ptr{Void},), opt.handle)
+        start!(opt::$T, x::Variable) = ccall(($("opk_start"*sfx), opklib),
+                                             Cint, (Ptr{Void}, Ptr{Void}),
+                                             opt.handle, x.handle)
 
         function iterate!(opt::$T, x::Variable, f::Real, g::Variable)
-            ccall(($(string(iterate)), opklib), Cint,
+            ccall(($("opk_iterate"*sfx), opklib), Cint,
                   (Ptr{Void}, Ptr{Void}, Cdouble, Ptr{Void}),
                   opt.handle, x.handle, f, g.handle)
         end
 
-        get_task(opt::$T) = ccall(($(string(get_task)), opklib),
+        get_task(opt::$T) = ccall(($(string("opk_get"*sfx*"_task")), opklib),
                                     Cint, (Ptr{Void},), opt.handle)
 
-        iterations(opt::$T) = ccall(($(string(get_iterations)), opklib),
-                                    Cptrdiff_t, (Ptr{Void},), opt.handle)
+        get_status(opt::$T) = ccall(($(string("opk_get"*sfx*"_status")),
+                                     opklib), Cint, (Ptr{Void},), opt.handle)
 
-        evaluations(opt::$T) = ccall(($(string(get_evaluations)), opklib),
-                                     Cptrdiff_t, (Ptr{Void},), opt.handle)
+        evaluations(opt::$T) = ccall(($(string("opk_get"*sfx*"_evaluations")),
+                                      opklib), Cptrdiff_t, (Ptr{Void},),
+                                     opt.handle)
 
-        restarts(opt::$T) = ccall(($(string(get_restarts)), opklib),
-                                  Cptrdiff_t, (Ptr{Void},), opt.handle)
+        iterations(opt::$T) = ccall(($(string("opk_get"*sfx*"_iterations")),
+                                     opklib), Cptrdiff_t, (Ptr{Void},),
+                                    opt.handle)
 
-        get_gatol(opt::$T) = ccall(($(string(get_gatol)), opklib),
+        restarts(opt::$T) = ccall(($(string("opk_get"*sfx*"_restarts")),
+                                   opklib), Cptrdiff_t, (Ptr{Void},),
+                                  opt.handle)
+
+        get_step(opt::$T) = ccall(($(string("opk_get"*sfx*"_step")), opklib),
                                    Cdouble, (Ptr{Void},), opt.handle)
 
-        get_grtol(opt::$T) = ccall(($(string(get_grtol)), opklib),
+        get_gnorm(opt::$T) = ccall(($(string("opk_get"*sfx*"_gnorm")), opklib),
                                    Cdouble, (Ptr{Void},), opt.handle)
 
-        function set_gatol!(opt::$T, gatol::Real)
-            if ccall(($(string(set_gatol)), opklib),
-                     Cint, (Ptr{Void},Cdouble), opt.handle, gatol) != SUCCESS
-                e = errno()
-                if e == Base.EINVAL
-                    error("invalid value for parameter gatol")
-                else
-                    error("unexpected error while setting parameter gatol")
-                end
-            end
+        function get_name(opt::$T)
+            nbytes = ccall(($(string("opk_get"*sfx*"_name")), opklib), Csize_t,
+                           (Ptr{UInt8}, Csize_t, Ptr{Void}),
+                           C_NULL, 0, f, opt.handle)
+            buf = Array(UInt8, nbytes)
+            ccall(($(string("opk_get"*sfx*"_name")), opklib), Csize_t,
+                  (Ptr{UInt8}, Csize_t, Ptr{Void}),
+                  buf, nbytes, f, opt.handle)
+            bytestring(buf)
         end
 
-        function set_grtol!(opt::$T, grtol::Real)
-            if ccall(($(string(set_grtol)), opklib),
-                     Cint, (Ptr{Void},Cdouble), opt.handle, grtol) != SUCCESS
-                e = errno()
-                if e == Base.EINVAL
-                    error("invalid value for parameter grtol")
-                else
-                    error("unexpected error while setting parameter grtol")
-                end
-            end
-        end
-
-        get_stpmin(opt::$T) = ccall(($(string(get_stpmin)), opklib),
-                                    Cdouble, (Ptr{Void},), opt.handle)
-
-        get_stpmax(opt::$T) = ccall(($(string(get_stpmax)), opklib),
-                                    Cdouble, (Ptr{Void},), opt.handle)
-
-        function set_stpmin_and_stpmax!(opt::$T, stpmin::Real, stpmax::Real)
-            if ccall(($(string(set_stpmin_and_stpmax)), opklib),
-                     Cint, (Ptr{Void},Cdouble,Cdouble),
-                     opt.handle, stpmin, stpmax) != SUCCESS
-                e = errno()
-                if e == Base.EINVAL
-                    error("invalid values for parameters stpmin and stpmax")
-                else
-                    error("unexpected error while setting parameters stpmin and stpmax")
-                end
-            end
+        function get_description(opt::$T)
+            nbytes = ccall(($(string("opk_get"*sfx*"_description")), opklib),
+                           Csize_t, (Ptr{UInt8}, Csize_t, Ptr{Void}),
+                           C_NULL, 0, f, opt.handle)
+            buf = Array(UInt8, nbytes)
+            ccall(($(string("opk_get"*sfx*"_description")), opklib), Csize_t,
+                  (Ptr{UInt8}, Csize_t, Ptr{Void}), buf, nbytes, f, opt.handle)
+            bytestring(buf)
         end
     end
 end
@@ -715,9 +903,8 @@ optimizer `opt`.
 """ get_task
 
 """
-`iterations(opt)` returns the number of iterations performed by the
-nonlinear optimizer `opt`.
-""" iterations
+`get_status(opt)` returns the current status of the nonlinear optimizer `opt`.
+""" get_status
 
 """
 `evaluations(opt)` returns the number of function (and gradient)
@@ -725,61 +912,30 @@ evaluations requested by the nonlinear optimizer `opt`.
 """ evaluations
 
 """
-`restarts(opt)` returns the number of restarts performed by the
+`iterations(opt)` returns the number of iterations performed by the
 nonlinear optimizer `opt`.
+""" iterations
+
+"""
+`restarts(opt)` returns the number of restarts performed by the nonlinear
+optimizer `opt`.
 """ restarts
 
 """
-`get_gatol(opt)` returns the absolute gradient threshold used by the
-nonlinear optimizer `opt` to check for the convergence.
-""" get_gatol
+`get_step(opt)` returns the current step length along the search direction.
+""" get_step
 
 """
-`get_grtol(opt)` returns the relative gradient threshold used by the
-nonlinear optimizer `opt` to check for the convergence.
-""" get_grtol
+`get_gnorm(opt)` returns the norm of the (projected) gradient of the last
+iterate accept by the nonlinear optimizer `opt`.
+""" get_gnorm
 
-"""
-`set_gatol!(opt, gatol)` set the absolute gradient threshold used by the
-nonlinear optimizer `opt` to check for the convergence.
-""" set_gatol!
-
-"""
-`set_grtol!(opt, grtol)` set the relative gradient threshold used by the
-nonlinear optimizer `opt` to check for the convergence.
-""" set_grtol!
-
-"""
-`get_stpmin(opt)` returns the minimum relative step length used by the
-nonlinear optimizer `opt` during line searches.
-""" get_stpmin
-
-"""
-`get_stpmax(opt)` returns the maximum relative step length used by the
-nonlinear optimizer `opt` during line searches.
-""" get_stpmax
-
-"""
-`set_stpmin_and_stpmax!(opt, stpmin, stpmax)` set the minimum and the
-maximum relative step length used by the nonlinear optimizer `opt` during
-line searches.
-""" set_stpmin_and_stpmax!
-
-get_scaling(opt::VMLM) = ccall((:opk_get_vmlm_scaling, opklib),
-                                      Cint, (Ptr{Void},), opt.handle)
-
-function set_scaling!(opt::VMLM, scaling::Integer)
-    if ccall((:opk_set_vmlm_scaling, opklib),
-             Cint, (Ptr{Void},Cint), opt.handle, scaling) != SUCCESS
-        error("unexpected error while setting scaling scaling")
-    end
-end
 
 #------------------------------------------------------------------------------
 # DRIVERS FOR NON-LINEAR OPTIMIZATION
 
 default_nlcg_line_search() = MoreThuenteLineSearch(ftol=1E-4, gtol=0.1)
-default_vmlm_line_search() = MoreThuenteLineSearch(ftol=1E-4, gtol=0.9)
+default_vmlmb_line_search() = MoreThuenteLineSearch(ftol=1E-4, gtol=0.9)
 
 
 """
@@ -796,11 +952,14 @@ the initial value of the variables (as well as the data type and dimensions of
 the solution) and optional argument `method` may be used to choose a specific
 conjugate gradient method.
 
-See `vmlm` for more details.
+See `vmlmb` for more details.
 """
 function nlcg{T<:Float,N}(fg!::Function, x0::DenseArray{T,N},
-                          method::Integer=NLCG_DEFAULT.method;
+                          flags::Integer=NLCG_DEFAULT.flags;
                           lnsrch::LineSearch=default_nlcg_line_search(),
+                          delta::Real=NLCG_DEFAULT.delta,
+                          epsilon::Real=NLCG_DEFAULT.epsilon,
+                          fmin::Union{Real,Void}=nothing,
                           gatol::Real=NLCG_DEFAULT.gatol,
                           grtol::Real=NLCG_DEFAULT.grtol,
                           stpmin::Real=NLCG_DEFAULT.stpmin,
@@ -808,9 +967,12 @@ function nlcg{T<:Float,N}(fg!::Function, x0::DenseArray{T,N},
                           maxeval::Integer=-1, maxiter::Integer=-1,
                           verb::Bool=false, debug::Bool=false)
     # Create an optimizer and solve the problem.
-    space = DenseVariableSpace(T, size(x0))
-    options = NLCGoptions(gatol=gatol, grtol=grtol, stpmin=stpmin,
-                          stpmax=stpmax, method=method)
+    dims = size(x0)
+    space = DenseVariableSpace(T, dims)
+    options = NLCGoptions(delta=delta, epsilon=epsilon,
+                          gatol=gatol, grtol=grtol,
+                          stpmin=stpmin, stpmax=stpmax,
+                          flags=flags, fmin=fmin)
     opt = NLCG(options, space, lnsrch)
     solve(opt, fg!, x0, maxeval=maxeval, maxiter=maxiter,
           verb=verb, debug=debug)
@@ -823,7 +985,7 @@ Limited Memory Variable Metric
 Minimizing the smooth mulivariate function `f(x)` by a limited-memory version
 of the LBFGS variable metric method is done by:
 ```
-x = vmlm(fg!, x0, mem)
+x = vmlmb(fg!, x0, mem)
 ```
 where `fg!` implements the objective function (see below), `x0` gives
 the initial value of the variables (as well as the data type and dimensions of
@@ -838,26 +1000,38 @@ with `x` the current variables and `g` a Julia array (of same type and
 simensions as `x`) to store the gradient of the function.  The value returned
 by `fg!` is `f(x)`.
 """
-function vmlm{T<:Float,N}(fg!::Function, x0::DenseArray{T,N},
-                          mem::Integer=VMLM_DEFAULT.mem;
-                          lnsrch::LineSearch=default_vmlm_line_search(),
-                          scaling::Integer=VMLM_DEFAULT.scaling,
-                          gatol::Real=VMLM_DEFAULT.gatol,
-                          grtol::Real=VMLM_DEFAULT.grtol,
-                          stpmin::Real=VMLM_DEFAULT.stpmin,
-                          stpmax::Real=VMLM_DEFAULT.stpmax,
-                          maxeval::Integer=-1, maxiter::Integer=-1,
-                          verb::Bool=false, debug::Bool=false)
+function vmlmb{T<:Float,N}(fg!::Function, x0::DenseArray{T,N};
+                           lower=nothing, upper=nothing,
+                           lnsrch::LineSearch=default_vmlmb_line_search(),
+                           mem::Integer=VMLMB_DEFAULT.mem,
+                           delta::Real=VMLMB_DEFAULT.delta,
+                           epsilon::Real=VMLMB_DEFAULT.epsilon,
+                           gatol::Real=VMLMB_DEFAULT.gatol,
+                           grtol::Real=VMLMB_DEFAULT.grtol,
+                           stpmin::Real=VMLMB_DEFAULT.stpmin,
+                           stpmax::Real=VMLMB_DEFAULT.stpmax,
+                           blmvm::Bool=(VMLMB_DEFAULT.blmvm != 0),
+                           savemem::Bool=(VMLMB_DEFAULT.savemem != 0),
+                           maxeval::Integer=-1, maxiter::Integer=-1,
+                           verb::Bool=false, debug::Bool=false)
     # Create an optimizer and solve the problem.
-    options = VMLMoptions(gatol=gatol, grtol=grtol, stpmin=stpmin,
-                          stpmax=stpmax, mem=mem, scaling=scaling)
+    #options = VMLMBoptions(mem=mem)
+    options = VMLMBoptions(delta=delta, epsilon=epsilon,
+                           gatol=gatol, grtol=grtol,
+                           stpmin=stpmin, stpmax=stpmax,
+                           mem=mem, blmvm=blmvm, savemem=savemem)
     space = DenseVariableSpace(T, size(x0))
-    opt = VMLM(options, space, lnsrch)
+    if lower == nothing && upper == nothing
+        box = nothing
+    else
+        box = BoxedSet(space, lower, upper)
+    end
+    opt = VMLMB(options, space, lnsrch, box)
     solve(opt, fg!, x0, maxeval=maxeval, maxiter=maxiter,
           verb=verb, debug=debug)
 end
 
-function solve(opt::Optimizer, fg!::Function, x0::DenseArray;
+function solve(opt::LimitedMemoryOptimizer, fg!::Function, x0::DenseArray;
                maxeval::Integer=-1, maxiter::Integer=-1,
                verb::Bool=false, debug::Bool=false)
     if debug
@@ -871,7 +1045,7 @@ function solve(opt::Optimizer, fg!::Function, x0::DenseArray;
     g = similar(x)
     wx = wrap(space, x)
     wg = wrap(space, g)
-    task = start!(opt)
+    task = start!(opt, wx)
     while true
         if task == TASK_COMPUTE_FG
             f = fg!(x, g)
@@ -881,11 +1055,12 @@ function solve(opt::Optimizer, fg!::Function, x0::DenseArray;
             if verb
                 if iter == 0
                     @printf("%s\n%s\n",
-                            " ITER   EVAL  RESTARTS         F(X)             ||G(X)||",
-                            "--------------------------------------------------------")
+                            " ITER   EVAL  RESTARTS          F(X)           ||G(X)||    STEP",
+                            "-----------------------------------------------------------------")
                 end
-                @printf("%5d  %5d  %5d  %24.16E %10.3E\n",
-                        iter, eval, restarts(opt), f, norm2(wg))
+                @printf("%5d  %5d  %5d  %24.16E %9.2E %9.2E\n",
+                        iter, eval, restarts(opt), f, get_gnorm(opt),
+                        get_step(opt))
             end
             if task == TASK_FINAL_X
                 return x

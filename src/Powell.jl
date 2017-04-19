@@ -8,74 +8,446 @@
 # This file is part of OptimPack.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015, Éric Thiébaut.
+# Copyright (C) 2015-2017, Éric Thiébaut.
 #
 # ----------------------------------------------------------------------------
 
+module Powell
+
+export iterate,
+       restart,
+       getstatus,
+       getreason,
+       getradius,
+       getncalls,
+       getlastf,
+       cobyla_optimize!,
+       cobyla_optimize,
+       cobyla_minimize!,
+       cobyla_minimize,
+       cobyla_maximize!,
+       cobyla_maximize,
+       cobyla_create,
+       COBYLA_INITIAL_ITERATE,
+       COBYLA_ITERATE,
+       COBYLA_SUCCESS,
+       COBYLA_BAD_RHO_RANGE,
+       COBYLA_BAD_SCALING,
+       COBYLA_ROUNDING_ERRORS,
+       COBYLA_TOO_MANY_EVALUATIONS,
+       COBYLA_BAD_ADDRESS,
+       COBYLA_CORRUPTED,
+       newuoa_optimize!,
+       newuoa_optimize,
+       newuoa_minimize!,
+       newuoa_minimize,
+       newuoa_maximize!,
+       newuoa_maximize,
+       newuoa_create,
+       NEWUOA_INITIAL_ITERATE,
+       NEWUOA_ITERATE,
+       NEWUOA_SUCCESS,
+       NEWUOA_BAD_NPT,
+       NEWUOA_BAD_RHO_RANGE,
+       NEWUOA_BAD_SCALING,
+       NEWUOA_ROUNDING_ERRORS,
+       NEWUOA_TOO_MANY_EVALUATIONS,
+       NEWUOA_STEP_FAILED,
+       NEWUOA_BAD_ADDRESS,
+       NEWUOA_CORRUPTED,
+       bobyqa_optimize!,
+       bobyqa_optimize,
+       bobyqa_minimize!,
+       bobyqa_minimize,
+       bobyqa_maximize!,
+       bobyqa_maximize,
+       BOBYQA_SUCCESS,
+       BOBYQA_BAD_NPT,
+       BOBYQA_BAD_RHO_RANGE,
+       BOBYQA_BAD_SCALING,
+       BOBYQA_TOO_CLOSE,
+       BOBYQA_ROUNDING_ERRORS,
+       BOBYQA_TOO_MANY_EVALUATIONS,
+       BOBYQA_STEP_FAILED
+
+import Base: ==
+
+import OptimPack: opklib
+
+abstract Status
+
+abstract Context
+
+=={T<:Status}(a::T, b::T) = a._code == b._code
+==(a::Status, b::Status) = false
+
+doc"""
+The `iterate(ctx, ...)` method performs the next iteration of the reverse
+communication associated with the context `ctx`.  Other arguments depend on the
+type of algorithm.
+
+For **COBYLA** algorithm, the next iteration is performed by:
+
+    iterate(ctx, f, x, c) -> status
+
+or
+
+    iterate(ctx, f, x) -> status
+
+on entry, the workspace status must be `COBYLA_ITERATE`, `f` and `c` are the
+function value and the constraints at `x`, the latter can be omitted if there
+are no constraints.  On exit, the returned value (the new workspace status) is:
+`COBYLA_ITERATE` if a new trial point has been stored in `x` and if user is
+requested to compute the function value and the constraints on the new point;
+`COBYLA_SUCCESS` if algorithm has converged and `x` has been set with the
+variables at the solution (the corresponding function value can be retrieved
+with `getlastf`); anything else indicates an error (see `getreason`
+for an explanatory message).
+
+
+For **NEWUOA** algorithm, the next iteration is performed by:
+
+    iterate(ctx, f, x) -> status
+
+on entry, the wokspace status must be `NEWUOA_ITERATE`, `f` is the function
+value at `x`.  On exit, the returned value (the new wokspace status) is:
+`NEWUOA_ITERATE` if a new trial point has been stored in `x` and if user is
+requested to compute the function value for the new point; `NEWUOA_SUCCESS` if
+algorithm has converged; anything else indicates an error (see `getreason` for
+an explanatory message).
+
+"""
+function iterate end
+
+doc"""
+
+    restart(ctx) -> status
+
+restarts the reverse communication algorithm associated with the context `ctx`
+using the same parameters.  The return value is the new status of the
+algorithm, see `getstatus` for details.
+
+"""
+function restart end
+
+doc"""
+
+    getstatus(ctx) -> status
+
+get the current status of the reverse communication algorithm associated with
+the context `ctx`.  Possible values are:
+
+* for **COBYLA**: `COBYLA_ITERATE`, if user is requested to compute `f(x)` and
+  `c(x)`; `COBYLA_SUCCESS`, if algorithm has converged;
+
+* for **NEWUOA**: `NEWUOA_ITERATE`, if user is requested to compute `f(x)`;
+  `NEWUOA_SUCCESS`, if algorithm has converged;
+
+Anything else indicates an error (see `getreason` for an explanatory message).
+
+"""
+function getstatus end
+
+doc"""
+
+    getreason(ctx) -> msg
+
+or
+
+    getreason(status) -> msg
+
+get an explanatory message about the current status of the reverse
+communication algorithm associated with the context `ctx` or with the status
+returned by an optimization method of by `getstatus(ctx)`.
+
+"""
+function getreason end
+
+getreason(ctx::Context) = getreason(getstatus(ctx))
+
+doc"""
+
+    getlastf(ctx) -> fx
+
+get the last function value in the reverse communication algorithm associated
+with the context `ctx`.  Upon convergence of `iterate`, this value corresponds
+to the function at the solution; otherwise, this value corresponds to the
+previous set of variables.
+
+"""
+function getlastf end
+
+doc"""
+
+    getncalls(ctx) -> nevals
+
+get the current number of function evaluations in the reverse communication
+algorithm associated with the context `ctx`.  Result is -1 if something is
+wrong, nonnegative otherwise.
+
+"""
+function getncalls end
+
+doc"""
+
+    getradius(ctx) -> rho
+
+get the current size of the trust region of the reverse communication algorithm
+associated with the context `ctx`.  Result is 0 if algorithm not yet started
+(before first iteration), -1 if something is wrong, strictly positive
+otherwise.
+
+"""
+function getradius end
+
+# Wrapper for the objective function in NEWUOA or BOBYQA, the actual objective
+# function is provided by the client data.
+function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Void})
+    x = unsafe_wrap(Array, xptr, n)
+    f = unsafe_pointer_to_objref(fptr)
+    convert(Cdouble, f(x))::Cdouble
+end
+
+const _objfun_c = cfunction(_objfun, Cdouble, (Cptrdiff_t, Ptr{Cdouble},
+                                               Ptr{Void}))
+
+# Wrapper for the objective function in COBYLA, the actual objective
+# function is provided by the client data.
+function _calcfc(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
+                 _c::Ptr{Cdouble}, fptr::Ptr{Void})
+    x = unsafe_wrap(Array, xptr, n)
+    f = unsafe_pointer_to_objref(fptr)
+    convert(Cdouble, (m > 0 ? f(x, unsafe_wrap(Array, _c, m)) : f(x)))::Cdouble
+end
+
+const _calcfc_c = cfunction(_calcfc, Cdouble, (Cptrdiff_t, Cptrdiff_t,
+                                               Ptr{Cdouble}, Ptr{Cdouble},
+                                               Ptr{Void}))
+
+#------------------------------------------------------------------------------
+# COBYLA
+
+immutable CobylaStatus <: Status
+    _code::Cint
+end
+
 # Possible status values returned by COBYLA.
-const COBYLA_INITIAL_ITERATE       = convert(Cint,  2)
-const COBYLA_ITERATE               = convert(Cint,  1)
-const COBYLA_SUCCESS               = convert(Cint,  0)
-const COBYLA_ROUNDING_ERRORS       = convert(Cint, -1)
-const COBYLA_TOO_MANY_EVALUATIONS  = convert(Cint, -2)
-const COBYLA_BAD_ADDRESS           = convert(Cint, -3)
-const COBYLA_CORRUPTED             = convert(Cint, -4)
+const COBYLA_INITIAL_ITERATE      = CobylaStatus( 2)
+const COBYLA_ITERATE              = CobylaStatus( 1)
+const COBYLA_SUCCESS              = CobylaStatus( 0)
+const COBYLA_BAD_NVARS            = CobylaStatus(-1)
+const COBYLA_BAD_NCONS            = CobylaStatus(-2)
+const COBYLA_BAD_RHO_RANGE        = CobylaStatus(-3)
+const COBYLA_BAD_SCALING          = CobylaStatus(-4)
+const COBYLA_ROUNDING_ERRORS      = CobylaStatus(-5)
+const COBYLA_TOO_MANY_EVALUATIONS = CobylaStatus(-6)
+const COBYLA_BAD_ADDRESS          = CobylaStatus(-7)
+const COBYLA_CORRUPTED            = CobylaStatus(-8)
 
 # Get a textual explanation of the status returned by COBYLA.
-function cobyla_reason(status::Integer)
-    ptr = ccall((:cobyla_reason, opklib), Ptr{UInt8}, (Cint,), status)
+function getreason(status::CobylaStatus)
+    ptr = ccall((:cobyla_reason, opklib), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
-        error("unknown COBYLA status: ", status)
+        error("unknown COBYLA status: ", status._code)
     end
     bytestring(ptr)
 end
 
-# Wrapper for the objective function in COBYLA, the actual objective
-# function is provided by the client data.
-function cobyla_objfun(n::Cptrdiff_t, m::Cptrdiff_t, x_::Ptr{Cdouble},
-                       c_::Ptr{Cdouble}, f_::Ptr{Any})
-    x = pointer_to_array(x_, n)
-    f = unsafe_pointer_to_objref(f_)
-    fx::Cdouble = (m > 0 ? f(x, pointer_to_array(c_, m)) : f(x))
-    return fx
-end
-const cobyla_objfun_c = cfunction(cobyla_objfun, Cdouble,
-                                  (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
-                                   Ptr{Cdouble}, Ptr{Any}))
+_cobyla_wslen(n::Integer, m::Integer) = n*(3*n + 2*m + 11) + 4*m + 6
 
-function cobyla_check(n::Integer, m::Integer, rhobeg::Real, rhoend::Real)
-    if n < 2
-        "bad number of variables"
-    elseif m < 0
-        "bad number of constraints"
-    elseif rhoend < 0 || rhoend > rhobeg
-        "bad trust region radius settings"
-    end
-end
+doc"""
+The methods:
 
-function cobyla!(f::Function, x::Vector{Cdouble},
-                 m::Integer, rhobeg::Real, rhoend::Real;
-                 verbose::Integer=0, maxeval::Integer=500)
+    cobyla_optimize!(fc, x, m, rhobeg, rhoend) -> (status, x, fx)
+    cobyla_optimize(fc, x0, m, rhobeg, rhoend) -> (status, x, fx)
+
+are identical to `cobyla_minimize!` and `cobyla_minimize` respectively but have
+an additional `maximize` keyword which is `false` by default and which
+specifies whether to maximize the objective function; otherwise, the method
+attempts to minimize the objective function.
+
+"""
+function cobyla_optimize!(fc::Function, x::DenseVector{Cdouble},
+                          m::Integer, rhobeg::Real, rhoend::Real;
+                          scale::DenseVector{Cdouble} = Array(Cdouble, 0),
+                          maximize::Bool = false,
+                          check::Bool = false,
+                          verbose::Integer = 0,
+                          maxeval::Integer = 30*length(x))
     n = length(x)
-    reason = cobyla_check(n, m, rhobeg, rhoend)
-    reason == nothing || error(reason)
-    w = Array(Cdouble, n*(3*n + 2*m + 11) + 4*m + 6)
-    iact = Array(Cptrdiff_t, m + 1)
-    maxfun = Cptrdiff_t[maxeval]
-    status = ccall((:cobyla, opklib), Cint,
-                   (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Any},
-                    Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
-                    Ptr{Cptrdiff_t}, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
-                   n, m, cobyla_objfun_c, pointer_from_objref(f),
-                   x, rhobeg, rhoend, verbose, maxfun, w, iact)
-    if status != COBYLA_SUCCESS
-        error(cobyla_reason(status))
+    nscl = length(scale)
+    if nscl == 0
+        sclptr = convert(Ptr{Cdouble}, C_NULL)
+    elseif nscl == n
+        sclptr = pointer(scale)
+    else
+        error("bad number of scaling factors")
     end
-    #return w[1]
+    work = Array(Cdouble, _cobyla_wslen(n, m))
+    iact = Array(Cptrdiff_t, m + 1)
+    status = CobylaStatus(ccall((:cobyla_optimize, opklib), Cint,
+                                (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
+                                 Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
+                                 Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
+                                 Ptr{Cdouble}, Ptr{Cptrdiff_t}), n, m,
+                                maximize, _calcfc_c, pointer_from_objref(fc),
+                                x, sclptr, rhobeg, rhoend, verbose, maxeval,
+                                work, iact))
+    if check && status != COBYLA_SUCCESS
+        error(getreason(status))
+    end
+    return (status, x, work[1])
 end
+
+cobyla_optimize(fc::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    cobyla_optimize!(fc, copy(x0), args...; kwds...)
+
+doc"""
+# Minimizing a function of many variables subject to inequality constraints
+
+Mike Powell's **COBYLA** algorithm attempts to find the variables `x` which
+solve the problem:
+
+    min f(x)    s.t.   c(x) <= 0
+
+where `x` is a vector of variables that has `n` components, `f(x)` is an
+objective function and `c(x)` implement `m` inequality constraints.  The
+algorithm employs linear approximations to the objective and constraint
+functions, the approximations being formed by linear interpolation at `n+1`
+points in the space of the variables.  We regard these interpolation points as
+vertices of a simplex.  The parameter `rho` controls the size of the simplex
+and it is reduced automatically from `rhobeg` to `rhoend`.  For each `rho`,
+COBYLA tries to achieve a good vector of variables for the current size, and
+then `rho` is reduced until the value `rhoend` is reached.  Therefore `rhobeg`
+and `rhoend` should be set to reasonable initial changes to and the required
+accuracy in the variables respectively, but this accuracy should be viewed as a
+subject for experimentation because it is not guaranteed.  The subroutine has
+an advantage over many of its competitors, however, which is that it treats
+each constraint individually when calculating a change to the variables,
+instead of lumping the constraints together into a single penalty function.
+The name of the subroutine is derived from the phrase "Constrained Optimization
+BY Linear Approximations".
+
+The most simple version of the algorithm is called as:
+
+    cobyla_minimize!(fc, x, m, rhobeg, rhoend) -> (status, x, fx)
+
+where `x` is a Julia vector with the initial and final variables, `m`,
+`rhobeg`, and `rhoend` have been defined already, while `fc` is a Julia
+function which is called as:
+
+    fc(x, cx) -> fx
+
+to store in `cx` the values of the constraints at `x` and to return `fx` the
+value of the objective function at `x`.  If there are no constraints
+(i.e. `m=0`), then `fc` is called without the `cx` argument as:
+
+    fc(x) -> fx
+
+The method returns a tuple with `status` the termaintion condition (should be
+`COBYLA_SUCCESS` unless keyword `check` is set `false`, see below), `x` the
+solution found by the algorithm and `fx` the corresponding function value.
+
+The method:
+
+    cobyla_minimize(fc, x0, m, rhobeg, rhoend) -> (status, x, fx)
+
+is identical but does not modify the vector of initial variables.
+
+
+## Scaling of variables
+
+The proper scaling of the variables is important for the success of the
+algorithm and the optional `scale` keyword should be specified if the typical
+precision is not the same for all variables.  If specified, `scale` is an array
+of strictly nonnegative values and of same size is the variables `x`, such that
+`scale[i]*rho` (with `rho` the trust region radius) is the size of the trust
+region for the `i`-th variable.  If keyword `scale` is not specified, a unit
+scaling for all the variables is assumed.
+
+
+## Other keywords
+
+The following keywords are available:
+
+* `scale` specify the typical magnitudes of the variables.  If specified, it
+  must have as many elements as `x`, all strictly positive.
+
+* `check` (`true` by default) specifies whether to throw an exception if the
+  algorithm is not fully successful.
+
+* `verbose` (`0` by default) set the amount of printing.
+
+* `maxeval` (`30*length(x)` by default) set maximum number of calls to the
+  objective function.
+
+
+## References
+
+The algorithm is described in:
+
+> M.J.D. Powell, "A direct search optimization method that models the objective
+> and constraint functions by linear interpolation," in Advances in
+> Optimization and Numerical Analysis Mathematics and Its Applications,
+> vol. 275 (eds. Susana Gomez and Jean-Pierre Hennart), Kluwer Academic
+> Publishers, pp. 51-67 (1994).
+
+"""
+cobyla_minimize!(args...; kwds...) =
+    cobyla_optimize!(args...; maximize=false, kwds...)
+
+cobyla_minimize(args...; kwds...) =
+    cobyla_optimize(args...; maximize=false, kwds...)
+
+doc"""
+The methods:
+
+    cobyla_maximize!(fc, x, m, rhobeg, rhoend) -> (status, x, fx)
+    cobyla_maximize(fc, x0, m, rhobeg, rhoend) -> (status, x, fx)
+
+are similar to `cobyla_minimize!` and `cobyla_minimize` respectively but
+solve the contrained maximization problem:
+
+    max f(x)    s.t.   c(x) <= 0
+
+"""
+cobyla_maximize!(args...; kwds...) =
+    cobyla_optimize!(args...; maximize=true, kwds...)
+
+cobyla_maximize(args...; kwds...) =
+    cobyla_optimize(args...; maximize=true, kwds...)
+
+@doc @doc(cobyla_optimize!) cobyla_optimize
+@doc @doc(cobyla_minimize!) cobyla_minimize
+@doc @doc(cobyla_maximize!) cobyla_maximize
+
+# Simpler version, mostly for testing.
+
+function cobyla!(f::Function, x::DenseVector{Cdouble},
+                 m::Integer, rhobeg::Real, rhoend::Real;
+                 check::Bool = true,
+                 verbose::Integer = 0,
+                 maxeval::Integer = 30*length(x))
+    n = length(x)
+    work = Array(Cdouble, _cobyla_wslen(n, m))
+    iact = Array(Cptrdiff_t, m + 1)
+    status = CobylaStatus(ccall((:cobyla, opklib), Cint,
+                                (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
+                                 Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
+                                 Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
+                                n, m, _calcfc_c, pointer_from_objref(f),
+                                x, rhobeg, rhoend, verbose, maxeval, work, iact))
+    if check && status != COBYLA_SUCCESS
+        error(getreason(status))
+    end
+    return (status, x, work[1])
+end
+
+cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    cobyla!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of COBYLA.
-type CobylaContext
+type CobylaContext <: Context
     ptr::Ptr{Void}
     n::Int
     m::Int
@@ -85,28 +457,39 @@ type CobylaContext
     maxeval::Int
 end
 
-# Create a new reverse communication workspace for COBYLA algorithm.
-# A typical usage is:
-# ```
-# x = Array(Cdouble, n)
-# c = Array(Cdouble, m)
-# x[...] = ... # initial solution
-# ctx = cobyla_create(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
-# status = cobyla_get_status(ctx)
-# while status == COBYLA_ITERATE
-#     fx = ...       # compute function value at X
-#     c[...] = ...   # compute constraints at X
-#     status = cobyla_iterate(ctx, fx, x, c)
-# end
-# if status != COBYLA_SUCCESS
-#     println("Something wrong occured in COBYLA: ", cobyla_reason(status))
-# end
-# ```
+doc"""
+
+    ctx = cobyla_create(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
+
+creates a new reverse communication workspace for COBYLA algorithm.  A typical
+usage is:
+
+    x = Array(Cdouble, n)
+    c = Array(Cdouble, m)
+    x[...] = ... # initial solution
+    ctx = cobyla_create(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
+    status = getstatus(ctx)
+    while status == COBYLA_ITERATE
+        fx = ...       # compute function value at X
+        c[...] = ...   # compute constraints at X
+        status = iterate(ctx, fx, x, c)
+    end
+    if status != COBYLA_SUCCESS
+        println("Something wrong occured in COBYLA: ", getreason(status))
+    end
+
+
+"""
 function cobyla_create(n::Integer, m::Integer,
                        rhobeg::Real, rhoend::Real;
                        verbose::Integer=0, maxeval::Integer=500)
-    reason = cobyla_check(n, m, rhobeg, rhoend)
-    reason == nothing || error(reason)
+    if n < 2
+        throw(ArgumentError("bad number of variables"))
+    elseif m < 0
+        throw(ArgumentError("bad number of constraints"))
+    elseif rhoend < 0 || rhoend > rhobeg
+        throw(ArgumentError("bad trust region radius parameters"))
+    end
     ptr = ccall((:cobyla_create, opklib), Ptr{Void},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
@@ -123,72 +506,42 @@ function cobyla_create(n::Integer, m::Integer,
     return ctx
 end
 
-# Perform the next iteration of the reverse communication variant of the
-# COBYLA algorithm.  On entry, the workspace status must be
-# `COBYLA_ITERATE`, `f` and `c` are the function value and the constraints
-# at `x`.  On exit, the returned value (the new workspace status) is:
-# `COBYLA_ITERATE` if a new trial point has been stored in `x` and if user
-# is requested to compute the function value and the constraints on the new
-# point; `COBYLA_SUCCESS` if algorithm has converged and `x` has been set
-# with the variables at the solution (the corresponding function value can
-# be retrieved with `cobyla_get_last_f`); anything else indicates an error
-# (see `cobyla_reason` for an explanatory message).
-function cobyla_iterate(ctx::CobylaContext, f::Real, x::Vector{Cdouble},
-                        c::Vector{Cdouble})
+function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble},
+                        c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
-    ccall((:cobyla_iterate, opklib), Cint,
-          (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
-          ctx.ptr, f, x, c)
+    CobylaStatus(ccall((:cobyla_iterate, opklib), Cint,
+                       (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
+                       ctx.ptr, f, x, c))
 end
-# The same but without constraints.
-function cobyla_iterate(ctx::CobylaContext, f::Real, x::Vector{Cdouble})
+
+function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
-    ccall((:cobyla_iterate, opklib), Cint,
-          (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Void}),
-          ctx.ptr, f, x, C_NULL)
+    CobylaStatus(ccall((:cobyla_iterate, opklib), Cint,
+                       (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Void}),
+                       ctx.ptr, f, x, C_NULL))
 end
 
-# Restart COBYLA algorithm using the same parameters.  The return value is
-# the new status of the algorithm, see `cobyla_get_status` for details.
-function cobyla_restart(ctx::CobylaContext)
-    ccall((:cobyla_restart, opklib), Cint, (Ptr{Void},), ctx.ptr)
-end
+restart(ctx::CobylaContext) =
+    CobylaStatus(ccall((:cobyla_restart, opklib), Cint, (Ptr{Void},), ctx.ptr))
 
-# Get the current status of the algorithm.  Result is: `COBYLA_ITERATE` if
-# user is requested to compute F(X) and C(X); `COBYLA_SUCCESS` if algorithm
-# has converged; anything else indicates an error (see `cobyla_reason` for
-# an explanatory message).
-function cobyla_get_status(ctx::CobylaContext)
-    ccall((:cobyla_get_status, opklib), Cint, (Ptr{Void},), ctx.ptr)
-end
+getstatus(ctx::CobylaContext) =
+    CobylaStatus(ccall((:cobyla_get_status, opklib), Cint, (Ptr{Void},),
+                       ctx.ptr))
 
 # Get the current number of function evaluations.  Result is -1 if
 # something is wrong (e.g. CTX is NULL), nonnegative otherwise.
-function cobyla_get_nevals(ctx::CobylaContext)
-    ccall((:cobyla_get_nevals, opklib), Cptrdiff_t, (Ptr{Void},), ctx.ptr)
-end
+getncalls(ctx::CobylaContext) =
+    Int(ccall((:cobyla_get_nevals, opklib), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
 
-# Get the current size of the trust region.  Result is 0 if algorithm not
-# yet started (before first iteration), -1 if something is wrong (e.g. CTX
-# is NULL), strictly positive otherwise.
-function cobyla_get_rho(ctx::CobylaContext)
+getradius(ctx::CobylaContext) =
     ccall((:cobyla_get_rho, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
-end
 
-# Get the last function value.  Upon convergence of `cobyla_iterate`
-# (i.e. return with status `COBYLA_SUCCESS`), this value corresponds to the
-# function at the solution; otherwise, this value corresponds to the
-# previous set of variables.
-function cobyla_get_last_f(ctx::CobylaContext)
+getlastf(ctx::CobylaContext) =
     ccall((:cobyla_get_last_f, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
-end
 
-# Get a textual explanation of the current status.
-cobyla_get_reason(ctx::CobylaContext) = cobyla_reason(cobyla_get_status(ctx))
-
-function cobyla_test(revcom::Bool=false)
+function cobyla_test(;revcom::Bool = false, scale::Real = 1.0)
     # Beware that order of operations may affect the result (whithin
     # rounding errors).  I have tried to keep the same ordering as F2C
     # which takes care of that, in particular when converting expressions
@@ -203,7 +556,7 @@ function cobyla_test(revcom::Bool=false)
             xopt = Array(Cdouble, n)
             xopt[1] = -1.0
             xopt[2] = 0.0
-            function ftest(x::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}) -> begin
                 r1 = x[1] + 1.0
                 r2 = x[2]
                 fc = 10.0*(r1*r1) + (r2*r2)
@@ -217,7 +570,7 @@ function cobyla_test(revcom::Bool=false)
             xopt = Array(Cdouble, n)
             xopt[1] = sqrt(0.5)
             xopt[2] = -xopt[1]
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = x[1]*x[2]
                 con[1] = 1.0 - x[1]*x[1] - x[2]*x[2]
                 return fc
@@ -231,7 +584,7 @@ function cobyla_test(revcom::Bool=false)
             xopt[1] = 1.0/sqrt(3.0)
             xopt[2] = 1.0/sqrt(6.0)
             xopt[3] = -0.33333333333333331
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = x[1]*x[2]*x[3]
                 con[1] = 1.0 - (x[1]*x[1]) - 2.0*(x[2]*x[2]) - 3.0*(x[3]*x[3])
                 return fc
@@ -244,7 +597,7 @@ function cobyla_test(revcom::Bool=false)
             xopt = Array(Cdouble, n)
             xopt[1] = -1.0
             xopt[2] = 1.0
-            function ftest(x::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}) -> begin
                 r2 = x[1]
                 r1 = r2*r2 - x[2]
                 r3 = x[1] + 1.0
@@ -259,7 +612,7 @@ function cobyla_test(revcom::Bool=false)
             xopt = Array(Cdouble, n)
             xopt[1] = -1.0
             xopt[2] = 1.0
-            function ftest(x::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}) -> begin
                 r2 = x[1]
                 r1 = r2*r2 - x[2]
                 r3 = x[1] + 1.0
@@ -275,7 +628,7 @@ function cobyla_test(revcom::Bool=false)
             xopt = Array(Cdouble, n)
             xopt[1] = sqrt(0.5)
             xopt[2] = xopt[1]
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = -x[1] - x[2]
                 r1 = x[1]
                 con[1] = x[2] - r1*r1
@@ -294,7 +647,7 @@ function cobyla_test(revcom::Bool=false)
             xopt[1] = 0.0
             xopt[2] = -3.0
             xopt[3] = -3.0
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = x[3]
                 con[1] = x[1]*5.0 - x[2] + x[3]
                 r1 = x[1]
@@ -315,7 +668,7 @@ function cobyla_test(revcom::Bool=false)
             xopt[2] = 1.0
             xopt[3] = 2.0
             xopt[4] = -1.0
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 r1 = x[1]
                 r2 = x[2]
                 r3 = x[3]
@@ -356,7 +709,7 @@ function cobyla_test(revcom::Bool=false)
             xopt[5] = -0.624487
             xopt[6] =  1.038131
             xopt[7] =  1.594227
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 r1 = x[1] - 10.0
                 r2 = x[2] - 12.0
                 r3 = x[3]
@@ -397,8 +750,8 @@ function cobyla_test(revcom::Bool=false)
             prt("Output from test problem 10 (Hexagon area)")
             n = 9
             m = 14
-            xopt = Array(Cdouble, n)
-            function ftest(x::Vector{Cdouble}, con::Vector{Cdouble})
+            xopt = fill!(Array(Cdouble, n), 0.0)
+            ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = -0.5*(x[1]*x[4] - x[2]*x[3] + x[3]*x[9] - x[5]*x[9]
                            + x[5]*x[8] - x[6]*x[7])
                 r1 = x[3]
@@ -440,32 +793,37 @@ function cobyla_test(revcom::Bool=false)
 
         x = Array(Cdouble, n)
         for icase in 1:2
-            for i in 1:n
-                x[i] = 1.0
-            end
+            fill!(x, 1.0)
             rhobeg = 0.5
             rhoend = (icase == 2 ? 1e-4 : 0.001)
             if revcom
                 # Test the reverse communication variant.
-                c = (m > 0 ? Array(Cdouble, m) : nothing)
-                ctx = cobyla_create(n, m, rhobeg, rhoend, verbose=1, maxeval=2000)
-                status = cobyla_get_status(ctx)
+                c = Array(Cdouble, max(m, 0))
+                ctx = cobyla_create(n, m, rhobeg, rhoend;
+                                    verbose = 1, maxeval = 2000)
+                status = getstatus(ctx)
                 while status == COBYLA_ITERATE
                     if m > 0
                         # Some constraints.
                         fx = ftest(x, c)
-                        status = cobyla_iterate(ctx, fx, x, c)
+                        status = iterate(ctx, fx, x, c)
                     else
                         # No constraints.
                         fx = ftest(x)
-                        status = cobyla_iterate(ctx, fx, x)
+                        status = iterate(ctx, fx, x)
                     end
                 end
                 if status != COBYLA_SUCCESS
-                    println("Something wrong occured in COBYLA: ", cobyla_reason(status))
+                    println("Something wrong occured in COBYLA: ",
+                            getreason(status))
                 end
+            elseif scale == 1
+                cobyla!(ftest, x, m, rhobeg, rhoend;
+                        verbose = 1, maxeval = 2000)
             else
-                cobyla!(ftest, x, m, rhobeg, rhoend, verbose=1, maxeval=2000)
+                cobyla_minimize!(ftest, x, m, rhobeg/scale, rhoend/scale;
+                                 scale = fill!(Array(Cdouble, n), scale),
+                                 verbose = 1, maxeval = 2000)
             end
             if nprob == 10
                 tempa = x[1] + x[3] + x[5] + x[7]
@@ -491,70 +849,112 @@ function cobyla_test(revcom::Bool=false)
     end
 end
 
-# ----------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# NEWUOA
+
+immutable NewuoaStatus <: Status
+    _code::Cint
+end
 
 # Possible status values returned by NEWUOA.
-const NEWUOA_INITIAL_ITERATE      = convert(Cint,  2)
-const NEWUOA_ITERATE              = convert(Cint,  1)
-const NEWUOA_SUCCESS              = convert(Cint,  0)
-const NEWUOA_BAD_NPT              = convert(Cint, -1)
-const NEWUOA_ROUNDING_ERRORS      = convert(Cint, -2)
-const NEWUOA_TOO_MANY_EVALUATIONS = convert(Cint, -3)
-const NEWUOA_STEP_FAILED          = convert(Cint, -4)
-const NEWUOA_BAD_ADDRESS          = convert(Cint, -5)
-const NEWUOA_CORRUPTED            = convert(Cint, -6)
+const NEWUOA_INITIAL_ITERATE      = NewuoaStatus( 2)
+const NEWUOA_ITERATE              = NewuoaStatus( 1)
+const NEWUOA_SUCCESS              = NewuoaStatus( 0)
+const NEWUOA_BAD_NVARS            = NewuoaStatus(-1)
+const NEWUOA_BAD_NPT              = NewuoaStatus(-2)
+const NEWUOA_BAD_RHO_RANGE        = NewuoaStatus(-3)
+const NEWUOA_BAD_SCALING          = NewuoaStatus(-4)
+const NEWUOA_ROUNDING_ERRORS      = NewuoaStatus(-5)
+const NEWUOA_TOO_MANY_EVALUATIONS = NewuoaStatus(-6)
+const NEWUOA_STEP_FAILED          = NewuoaStatus(-7)
+const NEWUOA_BAD_ADDRESS          = NewuoaStatus(-8)
+const NEWUOA_CORRUPTED            = NewuoaStatus(-9)
 
 # Get a textual explanation of the status returned by NEWUOA.
-function newuoa_reason(status::Integer)
-    ptr = ccall((:newuoa_reason, opklib), Ptr{UInt8}, (Cint,), status)
+function getreason(status::NewuoaStatus)
+    ptr = ccall((:newuoa_reason, opklib), Ptr{UInt8}, (Cint,), status.status)
     if ptr == C_NULL
-        error("unknown NEWUOA status: ", status)
+        error("unknown NEWUOA status: ", status._code)
     end
     bytestring(ptr)
 end
 
-# Wrapper for the objective function in NEWUOA, the actual objective
-# function is provided by the client data.
-function newuoa_objfun(n::Cptrdiff_t, x_::Ptr{Cdouble}, f_::Ptr{Any})
-    x = pointer_to_array(x_, n)
-    f = unsafe_pointer_to_objref(f_)
-    fx::Cdouble = f(x)
-    return fx
-end
-const newuoa_objfun_c = cfunction(newuoa_objfun, Cdouble,
-                                  (Cptrdiff_t, Ptr{Cdouble}, Ptr{Any}))
+_newuoa_wslen(n::Integer, npt::Integer) =
+    (npt + 13)*(npt + n) + div(3*n*(n + 3),2)
 
-function newuoa_check(n::Integer, npt::Integer, rhobeg::Real, rhoend::Real)
-    if n < 2
-        "bad number of variables"
-    elseif npt < n + 2 || npt > div((n + 2)*(n + 1),2)
-        "NPT is not in the required interval"
-    elseif rhoend < 0 || rhoend > rhobeg
-        "bad trust region radius settings"
-    end
-end
-
-function newuoa!(f::Function, x::Vector{Cdouble},
-                 npt::Integer, rhobeg::Real, rhoend::Real;
-                 verbose::Integer=0, maxeval::Integer=500)
+function newuoa_optimize!(f::Function, x::DenseVector{Cdouble},
+                          rhobeg::Real, rhoend::Real;
+                          scale::DenseVector{Cdouble} = Array(Cdouble, 0),
+                          maximize::Bool = false,
+                          npt::Integer = 2*length(x) + 1,
+                          check::Bool = true,
+                          verbose::Integer = 0,
+                          maxeval::Integer = 30*length(x))
     n = length(x)
-    reason = newuoa_check(n, npt, rhobeg, rhoend)
-    reason == nothing || error(reason)
-    w = Array(Cdouble, (npt + 13)*(npt + n) + div(3*n*(n + 3),2))
-    status = ccall((:newuoa, opklib), Cint,
-                   (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Any},
-                    Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
-                    Cptrdiff_t, Ptr{Cdouble}),
-                   n, npt, newuoa_objfun_c, pointer_from_objref(f),
-                   x, rhobeg, rhoend, verbose, maxeval, w)
-    if status != NEWUOA_SUCCESS
-        error(newuoa_reason(status))
+    nw = _newuoa_wslen(n, npt)
+    nscl = length(scale)
+    if nscl == 0
+        sclptr = convert(Ptr{Cdouble}, C_NULL)
+    elseif nscl == n
+        sclptr = pointer(scale)
+        nw += n
+    else
+        error("bad number of scaling factors")
     end
-    return nothing
+    work = Array(Cdouble, nw)
+    status = NewuoaStatus(ccall((:newuoa_optimize, opklib), Cint,
+                                (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
+                                 Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
+                                 Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
+                                 Ptr{Cdouble}), n, npt, maximize, _objfun_c,
+                                pointer_from_objref(f), x, sclptr, rhobeg,
+                                rhoend, verbose, maxeval, work))
+    if check && status != NEWUOA_SUCCESS
+        error(getreason(status))
+    end
+    return (status, x, work[1])
 end
+
+newuoa_optimize(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    newuoa_optimize(f, copy(x0), args...; kwds...)
+
+newuoa_minimize!(args...; kwds...) =
+    newuoa_optimize!(args...; maximize=false, kwds...)
+
+newuoa_minimize(args...; kwds...) =
+    newuoa_optimize(args...; maximize=false, kwds...)
+
+newuoa_maximize!(args...; kwds...) =
+    newuoa_optimize!(args...; maximize=true, kwds...)
+
+newuoa_maximize(args...; kwds...) =
+    newuoa_optimize(args...; maximize=true, kwds...)
+
+function newuoa!(f::Function, x::DenseVector{Cdouble},
+                 rhobeg::Real, rhoend::Real;
+                 npt::Integer = 2*length(x) + 1,
+                 verbose::Integer = 0,
+                 maxeval::Integer = 30*length(x),
+                 check::Bool = true)
+    n = length(x)
+    work = Array(Cdouble, _newuoa_wslen(n, npt))
+    status = NewuoaStatus(ccall((:newuoa, opklib), Cint,
+                                (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
+                                 Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
+                                 Cptrdiff_t, Ptr{Cdouble}), n, npt, _objfun_c,
+                                pointer_from_objref(f), x, rhobeg, rhoend,
+                                verbose, maxeval, work))
+    if check && status != NEWUOA_SUCCESS
+        error(getreason(status))
+    end
+    return (status, x, work[1])
+end
+
+newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    newuoa!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of NEWUOA.
-type NewuoaContext
+type NewuoaContext <: Context
     ptr::Ptr{Void}
     n::Int
     npt::Int
@@ -564,26 +964,30 @@ type NewuoaContext
     maxeval::Int
 end
 
-# Create a new reverse communication workspace for NEWUOA algorithm.
-# A typical usage is:
-# ```
-# x = Array(Cdouble, n)
-# x[...] = ... # initial solution
-# ctx = newuoa_create(n, npt, rhobeg, rhoend, verbose=0, maxeval=500)
-# status = newuoa_get_status(ctx)
-# while status == NEWUOA_ITERATE
-#   fx = ... # compute function value at X
-#   status = newuoa_iterate(ctx, fx, x)
-# end
-# if status != NEWUOA_SUCCESS
-#   println("Something wrong occured in NEWUOA: ", newuoa_reason(status))
-# end
-# ```
-function newuoa_create(n::Integer, npt::Integer,
-                       rhobeg::Real, rhoend::Real;
-                       verbose::Integer=0, maxeval::Integer=500)
-    reason = newuoa_check(n, npt, rhobeg, rhoend)
-    reason == nothing || error(reason)
+doc"""
+
+    ctx = newuoa_create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
+
+creates a new reverse communication workspace for NEWUOA algorithm.  A typical
+usage is:
+
+    x = Array(Cdouble, n)
+    x[...] = ... # initial solution
+    ctx = newuoa_create(n, rhobeg, rhoend; verbose=1, maxeval=500)
+    status = getstatus(ctx)
+    while status == NEWUOA_ITERATE
+        fx = ...       # compute function value at X
+        status = iterate(ctx, fx, x)
+    end
+    if status != NEWUOA_SUCCESS
+        println("Something wrong occured in NEWUOA: ", getreason(status))
+    end
+
+"""
+function newuoa_create(n::Integer, rhobeg::Real, rhoend::Real;
+                       npt::Integer = 2*length(x) + 1,
+                       verbose::Integer = 0,
+                       maxeval::Integer = 30*length(x))
     ptr = ccall((:newuoa_create, opklib), Ptr{Void},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
@@ -591,7 +995,7 @@ function newuoa_create(n::Integer, npt::Integer,
     if ptr == C_NULL
         reason = (errno() == Base.Errno.ENOMEM
                   ? "insufficient memory"
-                  : "unexpected error")
+                  : "invalid argument")
         error(reason)
     end
     ctx = NewuoaContext(ptr, n, npt, rhobeg, rhoend, verbose, maxeval)
@@ -600,52 +1004,30 @@ function newuoa_create(n::Integer, npt::Integer,
     return ctx
 end
 
-# Perform the next iteration of the reverse communication version of the
-# NEWUOA algorithm.  On entry, the wokspace status must be
-# `NEWUOA_ITERATE`, `f` is the function value at `x`.  On exit, the
-# returned value (the new wokspace status) is: `NEWUOA_ITERATE` if a new
-# trial point has been stored in `x` and if user is requested to compute
-# the function value for the new point; `NEWUOA_SUCCESS` if algorithm has
-# converged; anything else indicates an error (see `newuoa_reason` for an
-# explanatory message).
-function newuoa_iterate(ctx::NewuoaContext, f::Real, x::Vector{Cdouble})
+function iterate(ctx::NewuoaContext, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
-    ccall((:newuoa_iterate, opklib), Cint,
-          (Ptr{Void}, Cdouble, Ptr{Cdouble}),
-          ctx.ptr, f, x)
+    NewuoaStatus(ccall((:newuoa_iterate, opklib), Cint,
+                       (Ptr{Void}, Cdouble, Ptr{Cdouble}),
+                       ctx.ptr, f, x))
 end
 
-# Restart NEWUOA algorithm using the same parameters.  The return value is the
-# new status of the algorithm, see `newuoa_get_status` for details.
-function newuoa_restart(ctx::NewuoaContext)
-    ccall((:newuoa_restart, opklib), Cint, (Ptr{Void},), ctx.ptr)
-end
+restart(ctx::NewuoaContext) =
+    NewuoaStatus(ccall((:newuoa_restart, opklib), Cint, (Ptr{Void},), ctx.ptr))
 
-# Get the current status of the algorithm.  Result is: `NEWUOA_ITERATE` if
-# user is requested to compute F(X); `NEWUOA_SUCCESS` if algorithm has
-# converged; anything else indicates an error (see `newuoa_reason` for an
-# explanatory message).
-function newuoa_get_status(ctx::NewuoaContext)
-    ccall((:newuoa_get_status, opklib), Cint, (Ptr{Void},), ctx.ptr)
-end
+getstatus(ctx::NewuoaContext) =
+    NewuoaStatus(ccall((:newuoa_get_status, opklib), Cint, (Ptr{Void},),
+                       ctx.ptr))
 
-# Get the current number of function evaluations.  Result is -1 if
-# something is wrong (e.g. CTX is NULL), nonnegative otherwise.
-function newuoa_get_nevals(ctx::NewuoaContext)
-    ccall((:newuoa_get_nevals, opklib), Cptrdiff_t, (Ptr{Void},), ctx.ptr)
-end
+getncalls(ctx::NewuoaContext) =
+    Int(ccall((:newuoa_get_nevals, opklib), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
 
-# Get the current size of the trust region.  Result is 0 if algorithm not
-# yet started (before first iteration), -1 if something is wrong (e.g. CTX
-# is NULL), strictly positive otherwise.
-function newuoa_get_rho(ctx::NewuoaContext)
+getradius(ctx::NewuoaContext) =
     ccall((:newuoa_get_rho, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
-end
 
-function newuoa_test(revcom::Bool=false)
+function newuoa_test(;revcom::Bool=false, scale::Real=1)
     # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with
     # NPT = 2N+1.
-    function ftest(x::Vector{Cdouble})
+    function ftest(x::DenseVector{Cdouble})
         n = length(x)
         np = n + 1
         y = Array(Cdouble, np, n)
@@ -687,87 +1069,141 @@ function newuoa_test(revcom::Bool=false)
         @printf("\n\n    Results with N =%2d and NPT =%3d\n", n, npt)
         if revcom
             # Test the reverse communication variant.
-            ctx = newuoa_create(n, npt, rhobeg, rhoend, verbose=2, maxeval=5000)
-            status = newuoa_get_status(ctx)
+            ctx = newuoa_create(n, rhobeg, rhoend;
+                                npt = npt, verbose = 2, maxeval = 5000)
+            status = getstatus(ctx)
             while status == NEWUOA_ITERATE
                 fx = ftest(x)
-                status = newuoa_iterate(ctx, fx, x)
+                status = iterate(ctx, fx, x)
             end
             if status != NEWUOA_SUCCESS
-                println("Something wrong occured in NEWUOA: ", newuoa_reason(status))
+                println("Something wrong occured in NEWUOA: ",
+                        getreason(status))
             end
+        elseif scale != 1
+            newuoa_minimize!(ftest, x, rhobeg/scale, rhoend/scale;
+                             scale = fill!(similar(x), scale),
+                             npt = npt, verbose = 2, maxeval = 5000)
         else
-            newuoa!(ftest, x, npt, rhobeg, rhoend, verbose=2, maxeval=5000)
+            newuoa!(ftest, x, rhobeg, rhoend;
+                    npt = npt, verbose = 2, maxeval = 5000)
         end
     end
 end
 
-# ----------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# BOBYQA
 
-const BOBYQA_SUCCESS              = convert(Cint,  0)
-const BOBYQA_BAD_NPT              = convert(Cint, -1)
-const BOBYQA_TOO_CLOSE            = convert(Cint, -2)
-const BOBYQA_ROUNDING_ERRORS      = convert(Cint, -3)
-const BOBYQA_TOO_MANY_EVALUATIONS = convert(Cint, -4)
-const BOBYQA_STEP_FAILED          = convert(Cint, -5)
+immutable BobyqaStatus <: Status
+    _code::Cint
+end
 
-function bobyqa_reason(status::Integer)
-    if status == BOBYQA_SUCCESS
-        return "algorithm converged"
-    elseif status == BOBYQA_BAD_NPT
-        return "NPT is not in the required interval"
-    elseif status == BOBYQA_TOO_CLOSE
-        return "insufficient space between the bounds"
-    elseif status == BOBYQA_ROUNDING_ERRORS
-        return "too much cancellation in a denominator"
-    elseif status == BOBYQA_TOO_MANY_EVALUATIONS
-        return "maximum number of function evaluations exceeded"
-    elseif status == BOBYQA_STEP_FAILED
-        return "a trust region step has failed to reduce quadratic approximation"
-    else
-        return "unknown BOBYQA status"
+const BOBYQA_SUCCESS              = BobyqaStatus( 0)
+const BOBYQA_BAD_NVARS            = BobyqaStatus(-1)
+const BOBYQA_BAD_NPT              = BobyqaStatus(-2)
+const BOBYQA_BAD_RHO_RANGE        = BobyqaStatus(-3)
+const BOBYQA_BAD_SCALING          = BobyqaStatus(-4)
+const BOBYQA_TOO_CLOSE            = BobyqaStatus(-5)
+const BOBYQA_ROUNDING_ERRORS      = BobyqaStatus(-6)
+const BOBYQA_TOO_MANY_EVALUATIONS = BobyqaStatus(-7)
+const BOBYQA_STEP_FAILED          = BobyqaStatus(-8)
+
+# Get a textual explanation of the status returned by BOBYQA.
+function getreason(status::BobyqaStatus)
+    ptr = ccall((:bobyqa_reason, opklib), Ptr{UInt8}, (Cint,), status._code)
+    if ptr == C_NULL
+        error("unknown BOBYQA status: ", status._code)
     end
+    bytestring(ptr)
 end
 
-# Wrapper for the objective function in BOBYQA, the actual objective
-# function is provided by the client data.
-function bobyqa_objfun(n::Cptrdiff_t, x_::Ptr{Cdouble}, f_::Ptr{Any})
-    x = pointer_to_array(x_, n)
-    f = unsafe_pointer_to_objref(f_)
-    fx::Cdouble = f(x)
-    return fx
-end
-const bobyqa_objfun_c = cfunction(bobyqa_objfun, Cdouble,
-                                  (Cptrdiff_t, Ptr{Cdouble}, Ptr{Any}))
+_bobyqa_wslen(n::Integer, npt::Integer) =
+    (npt + 5)*(npt + n) + div(3*n*(n + 5),2)
 
-function bobyqa!(f::Function, x::Vector{Cdouble},
-                 xl::Vector{Cdouble}, xu::Vector{Cdouble},
-                 rhobeg::Real, rhoend::Real;
-                 npt::Union{Integer,Void}=nothing,
-                 verbose::Integer=0, maxeval::Integer=500)
+function bobyqa_optimize!(f::Function, x::DenseVector{Cdouble},
+                          xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
+                          rhobeg::Real, rhoend::Real;
+                          scale::DenseVector{Cdouble}=Array(Cdouble, 0),
+                          maximize::Bool=false,
+                          npt::Integer=2*length(x) + 1,
+                          check::Bool=false,
+                          verbose::Integer=0,
+                          maxeval::Integer=30*length(x))
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    if npt == nothing
-        npt = 2*n + 1
+    nw = _bobyqa_wslen(n, npt)
+    nscl = length(scale)
+    if nscl == 0
+        sclptr = convert(Ptr{Cdouble}, C_NULL)
+    elseif nscl == n
+        sclptr = pointer(scale)
+        nw += 3*n
+    else
+        error("bad number of scaling factors")
     end
-    w = Array(Cdouble, (npt + 5)*(npt + n) + div(3*n*(n + 5),2))
-    status = ccall((:bobyqa, opklib), Cint,
-                (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Any},
-                 Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
-                 Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
-                 Ptr{Cdouble}),
-                   n, npt, bobyqa_objfun_c, pointer_from_objref(f),
-                   x, xl, xu, rhobeg, rhoend, verbose, maxeval, w)
-    if status != BOBYQA_SUCCESS
-        error(bobyqa_reason(status))
+    work = Array(Cdouble, nw)
+    status = BobyqaStatus(ccall((:bobyqa_optimize, opklib), Cint,
+                                (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
+                                 Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
+                                 Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
+                                 Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
+                                n, npt, (maximize ? Cint(1) : Cint(0)),
+                                _objfun_c, pointer_from_objref(f),
+                                x, xl, xu, sclptr, rhobeg, rhoend,
+                                verbose, maxeval, work))
+    if check && status != BOBYQA_SUCCESS
+        error(getreason(status))
     end
-    return w[1]
+    return (status, x, work[1])
 end
+
+bobyqa_optimize(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    bobyqa_optimize(f, copy(x0), args...; kwds...)
+
+bobyqa_minimize!(args...; kwds...) =
+    bobyqa_optimize!(args...; maximize=false, kwds...)
+
+bobyqa_minimize(args...; kwds...) =
+    bobyqa_optimize(args...; maximize=false, kwds...)
+
+bobyqa_maximize!(args...; kwds...) =
+    bobyqa_optimize!(args...; maximize=true, kwds...)
+
+bobyqa_maximize(args...; kwds...) =
+    bobyqa_optimize(args...; maximize=true, kwds...)
+
+function bobyqa!(f::Function, x::DenseVector{Cdouble},
+                 xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
+                 rhobeg::Real, rhoend::Real;
+                 npt::Integer = 2*length(x) + 1,
+                 verbose::Integer = 0,
+                 maxeval::Integer = 30*length(x),
+                 check::Bool = true)
+    n = length(x)
+    length(xl) == n || error("bad length for inferior bound")
+    length(xu) == n || error("bad length for superior bound")
+    work = Array(Cdouble, _bobyqa_wslen(n, npt))
+    status = BobyqaStatus(ccall((:bobyqa, opklib), Cint,
+                                (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
+                                 Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
+                                 Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
+                                 Ptr{Cdouble}),
+                                n, npt, _objfun_c,
+                                pointer_from_objref(f), x, xl, xu,
+                                rhobeg, rhoend, verbose, maxeval, work))
+    if check && status != BOBYQA_SUCCESS
+        error(getreason(status))
+    end
+    return (status, x, work[1])
+end
+
+bobyqa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    bobyqa!(f, copy(x0), args...; kwds...)
 
 function bobyqa_test()
     # The test function.
-    function f(x::Vector{Cdouble})
+    function f(x::DenseVector{Cdouble})
         fx = 0.0
         n = length(x)
         for i in 4:2:n
@@ -810,8 +1246,13 @@ function bobyqa_test()
                 x[2*j - 1] = cos(temp)
                 x[2*j]     = sin(temp)
             end
-            fx = bobyqa!(f, x, xl, xu, rhobeg, rhoend, npt=npt, verbose=2, maxeval=500000)
+            fx = bobyqa!(f, x, xl, xu, rhobeg, rhoend, npt=npt,
+                         verbose=2, maxeval=500000)[3]
             @printf("\n***** least function value: %.15e\n", fx)
         end
     end
 end
+
+#------------------------------------------------------------------------------
+
+end # module Powell
