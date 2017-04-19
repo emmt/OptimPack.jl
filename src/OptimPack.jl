@@ -1,16 +1,18 @@
 #
 # OptimPack.jl --
 #
-# Optimization for Julia.
+# Julia wrapper for OptimPack.
 #
 # ----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License:
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License:
 #
-# Copyright (C) 2014-2016, Éric Thiébaut.
+# Copyright (C) 2014-2017, Éric Thiébaut.
 #
 # ----------------------------------------------------------------------------
+
+isdefined(Base, :__precompile__) && __precompile__()
 
 module OptimPack
 
