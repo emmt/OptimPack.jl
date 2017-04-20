@@ -1089,7 +1089,7 @@ end
 
 # Load other components.
 include("Brent.jl")
-include("Powell.jl")
+include("powell.jl")
 include("spg2.jl")
 
 end # module
