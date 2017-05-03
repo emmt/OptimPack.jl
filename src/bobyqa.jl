@@ -20,6 +20,8 @@ export
 
 import ...opklib, ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
 
+const DLL = opklib
+
 immutable Status <: AbstractStatus
     _code::Cint
 end
@@ -36,11 +38,11 @@ const STEP_FAILED          = Status(-8)
 
 # Get a textual explanation of the status returned by BOBYQA.
 function getreason(status::Status)
-    ptr = ccall((:bobyqa_reason, opklib), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:bobyqa_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown BOBYQA status: ", status._code)
     end
-    bytestring(ptr)
+    unsafe_string(ptr)
 end
 
 # Yield the number of elements in BOBYQA workspace.
@@ -61,7 +63,7 @@ const _objfun_c = cfunction(_objfun, Cdouble, (Cptrdiff_t, Ptr{Cdouble},
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble}=Array(Cdouble, 0),
+                   scale::DenseVector{Cdouble}=Array{Cdouble}(0),
                    maximize::Bool=false,
                    npt::Integer=2*length(x) + 1,
                    check::Bool=false,
@@ -80,8 +82,8 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    work = Array(Cdouble, nw)
-    status = Status(ccall((:bobyqa_optimize, opklib), Cint,
+    work = Array{Cdouble}(nw)
+    status = Status(ccall((:bobyqa_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
@@ -115,8 +117,8 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    work = Array(Cdouble, _wslen(n, npt))
-    status = Status(ccall((:bobyqa, opklib), Cint,
+    work = Array{Cdouble}(_wslen(n, npt))
+    status = Status(ccall((:bobyqa, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
@@ -158,9 +160,9 @@ function runtests()
     for m in (5,10)
         q = 2.0*pi/m
         n = 2*m
-        x = Array(Cdouble, n)
-        xl = Array(Cdouble, n)
-        xu = Array(Cdouble, n)
+        x = Array{Cdouble}(n)
+        xl = Array{Cdouble}(n)
+        xu = Array{Cdouble}(n)
         for i in 1:n
             xl[i] = bdl
             xu[i] = bdu

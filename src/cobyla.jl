@@ -22,6 +22,8 @@ export
 #        on the same line as `import`
 import ...opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
+const DLL = opklib
+
 immutable Status <: AbstractStatus
     _code::Cint
 end
@@ -41,11 +43,11 @@ const CORRUPTED            = Status(-8)
 
 # Get a textual explanation of the status returned by COBYLA.
 function getreason(status::Status)
-    ptr = ccall((:cobyla_reason, opklib), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:cobyla_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown COBYLA status: ", status._code)
     end
-    bytestring(ptr)
+    unsafe_string(ptr)
 end
 
 """
@@ -193,7 +195,7 @@ optimize(fc::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
                    m::Integer, rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble} = Array(Cdouble, 0),
+                   scale::DenseVector{Cdouble} = Array{Cdouble}(0),
                    maximize::Bool = false,
                    check::Bool = false,
                    verbose::Integer = 0,
@@ -207,9 +209,9 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    work = Array(Cdouble, _wslen(n, m))
-    iact = Array(Cptrdiff_t, m + 1)
-    status = Status(ccall((:cobyla_optimize, opklib), Cint,
+    work = Array{Cdouble}(_wslen(n, m))
+    iact = Array{Cptrdiff_t}(m + 1)
+    status = Status(ccall((:cobyla_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
@@ -233,9 +235,9 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                  verbose::Integer = 0,
                  maxeval::Integer = 30*length(x))
     n = length(x)
-    work = Array(Cdouble, _wslen(n, m))
-    iact = Array(Cptrdiff_t, m + 1)
-    status = Status(ccall((:cobyla, opklib), Cint,
+    work = Array{Cdouble}(_wslen(n, m))
+    iact = Array{Cptrdiff_t}(m + 1)
+    status = Status(ccall((:cobyla, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
@@ -269,8 +271,8 @@ end
 creates a new reverse communication workspace for COBYLA algorithm.  A typical
 usage is:
 
-    x = Array(Cdouble, n)
-    c = Array(Cdouble, m)
+    x = Array{Cdouble}(n)
+    c = Array{Cdouble}(m)
     x[...] = ... # initial solution
     ctx = Cobyla.create(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
     status = getstatus(ctx)
@@ -294,7 +296,7 @@ function create(n::Integer, m::Integer,
     elseif rhoend < 0 || rhoend > rhobeg
         throw(ArgumentError("bad trust region radius parameters"))
     end
-    ptr = ccall((:cobyla_create, opklib), Ptr{Void},
+    ptr = ccall((:cobyla_create, DLL), Ptr{Void},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
                 n, m, rhobeg, rhoend, verbose, maxeval)
@@ -305,7 +307,7 @@ function create(n::Integer, m::Integer,
         error(reason)
     end
     ctx = CobylaContext(ptr, n, m, rhobeg, rhoend, verbose, maxeval)
-    finalizer(ctx, ctx -> ccall((:cobyla_delete, opklib), Void,
+    finalizer(ctx, ctx -> ccall((:cobyla_delete, DLL), Void,
                                 (Ptr{Void},), ctx.ptr))
     return ctx
 end
@@ -314,7 +316,7 @@ function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, opklib), Cint,
+    Status(ccall((:cobyla_iterate, DLL), Cint,
                  (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
                  ctx.ptr, f, x, c))
 end
@@ -322,27 +324,27 @@ end
 function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, opklib), Cint,
+    Status(ccall((:cobyla_iterate, DLL), Cint,
                  (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Void}),
                  ctx.ptr, f, x, C_NULL))
 end
 
 restart(ctx::CobylaContext) =
-    Status(ccall((:cobyla_restart, opklib), Cint, (Ptr{Void},), ctx.ptr))
+    Status(ccall((:cobyla_restart, DLL), Cint, (Ptr{Void},), ctx.ptr))
 
 getstatus(ctx::CobylaContext) =
-    Status(ccall((:cobyla_get_status, opklib), Cint, (Ptr{Void},), ctx.ptr))
+    Status(ccall((:cobyla_get_status, DLL), Cint, (Ptr{Void},), ctx.ptr))
 
 # Get the current number of function evaluations.  Result is -1 if
 # something is wrong (e.g. CTX is NULL), nonnegative otherwise.
 getncalls(ctx::CobylaContext) =
-    Int(ccall((:cobyla_get_nevals, opklib), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
+    Int(ccall((:cobyla_get_nevals, DLL), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
 
 getradius(ctx::CobylaContext) =
-    ccall((:cobyla_get_rho, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
+    ccall((:cobyla_get_rho, DLL), Cdouble, (Ptr{Void},), ctx.ptr)
 
 getlastf(ctx::CobylaContext) =
-    ccall((:cobyla_get_last_f, opklib), Cdouble, (Ptr{Void},), ctx.ptr)
+    ccall((:cobyla_get_last_f, DLL), Cdouble, (Ptr{Void},), ctx.ptr)
 
 function runtests(;revcom::Bool = false, scale::Real = 1.0)
     # Beware that order of operations may affect the result (whithin
@@ -356,7 +358,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 1 (Simple quadratic)")
             n = 2
             m = 0
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = -1.0
             xopt[2] = 0.0
             ftest = (x::DenseVector{Cdouble}) -> begin
@@ -370,7 +372,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 2 (2D unit circle calculation)")
             n = 2
             m = 1
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = sqrt(0.5)
             xopt[2] = -xopt[1]
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
@@ -383,7 +385,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 3 (3D ellipsoid calculation)")
             n = 3
             m = 1
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = 1.0/sqrt(3.0)
             xopt[2] = 1.0/sqrt(6.0)
             xopt[3] = -0.33333333333333331
@@ -397,7 +399,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 4 (Weak Rosenbrock)")
             n = 2
             m = 0
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = -1.0
             xopt[2] = 1.0
             ftest = (x::DenseVector{Cdouble}) -> begin
@@ -412,7 +414,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 5 (Intermediate Rosenbrock)")
             n = 2
             m = 0
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = -1.0
             xopt[2] = 1.0
             ftest = (x::DenseVector{Cdouble}) -> begin
@@ -428,7 +430,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 6 (Equation (9.1.15) in Fletcher)")
             n = 2
             m = 2
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = sqrt(0.5)
             xopt[2] = xopt[1]
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
@@ -446,7 +448,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 7 (Equation (14.4.2) in Fletcher)")
             n = 3
             m = 3
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = 0.0
             xopt[2] = -3.0
             xopt[3] = -3.0
@@ -466,7 +468,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 8 (Rosen-Suzuki)")
             n = 4
             m = 3
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = 0.0
             xopt[2] = 1.0
             xopt[3] = 2.0
@@ -504,7 +506,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 9 (Hock and Schittkowski 100)")
             n = 7
             m = 4
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] =  2.330499
             xopt[2] =  1.951372
             xopt[3] = -0.4775414
@@ -553,7 +555,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 10 (Hexagon area)")
             n = 9
             m = 14
-            xopt = fill!(Array(Cdouble, n), 0.0)
+            xopt = fill!(Array{Cdouble}(n), 0.0)
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = -0.5*(x[1]*x[4] - x[2]*x[3] + x[3]*x[9] - x[5]*x[9]
                            + x[5]*x[8] - x[6]*x[7])
@@ -594,14 +596,14 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             error("bad problem number ($nprob)")
         end
 
-        x = Array(Cdouble, n)
+        x = Array{Cdouble}(n)
         for icase in 1:2
             fill!(x, 1.0)
             rhobeg = 0.5
             rhoend = (icase == 2 ? 1e-4 : 0.001)
             if revcom
                 # Test the reverse communication variant.
-                c = Array(Cdouble, max(m, 0))
+                c = Array{Cdouble}(max(m, 0))
                 ctx = Cobyla.create(n, m, rhobeg, rhoend;
                                     verbose = 1, maxeval = 2000)
                 status = getstatus(ctx)
@@ -625,7 +627,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                         verbose = 1, maxeval = 2000)
             else
                 Cobyla.minimize!(ftest, x, m, rhobeg/scale, rhoend/scale;
-                                 scale = fill!(Array(Cdouble, n), scale),
+                                 scale = fill!(Array{Cdouble}(n), scale),
                                  verbose = 1, maxeval = 2000)
             end
             if nprob == 10
