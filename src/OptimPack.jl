@@ -12,7 +12,7 @@
 #
 # ----------------------------------------------------------------------------
 
-isdefined(Base, :__precompile__) && __precompile__()
+isdefined(Base, :__precompile__) && __precompile__(false)
 
 module OptimPack
 
@@ -21,14 +21,24 @@ export nlcg, vmlmb, spg2
 export fzero, fmin, fmin_global
 
 # Functions must be imported to be extended with new methods.
-import Base: size, length, eltype, ndims, copy, dot
+import Base: ENV, size, length, eltype, ndims, copy, dot
 
-#if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-#    include("../deps/deps.jl")
-#else
-#    error("OptimPack not properly installed. Please run Pkg.build(\"OptimPack\")")
-#end
-const opklib = joinpath(ENV["HOME"],"apps/lib/libopk.so.1.0.0")
+# Locate the dynamic library.
+@static if is_apple()
+    dllname(part::String) = "lib$(part).dylib"
+elseif is_windows()
+    dllname(part::String) = "$(part).dll"
+else # assume is_unix():
+    dllname(part::String) = "lib$(part).so"
+end
+
+const opklib = Base.Libdl.find_library(dllname("opk"))
+
+# if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+#     include("../deps/deps.jl")
+# else
+#     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
+# end
 
 """
 `Float` is any floating point type supported by the library.
@@ -91,9 +101,9 @@ for sym in (# status
             :SCALING_NONE, :SCALING_OREN_SPEDICATO, :SCALING_BARZILAI_BORWEIN,
             # algorithm
             :ALGORITHM_NLCG, :ALGORITHM_VMLMB)
-    let name = "OPK_"*string(sym)
+    let name = "OPK_"*string(sym), value = get_constant(name)
         @eval begin
-            const $sym = get_constant($name)
+            const $sym = $value
         end
     end
 end
