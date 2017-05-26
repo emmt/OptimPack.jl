@@ -12,7 +12,7 @@
 #
 # ----------------------------------------------------------------------------
 
-isdefined(Base, :__precompile__) && __precompile__(false)
+isdefined(Base, :__precompile__) && __precompile__(true)
 
 module OptimPack
 
@@ -23,30 +23,16 @@ export fzero, fmin, fmin_global
 # Functions must be imported to be extended with new methods.
 import Base: ENV, size, length, eltype, ndims, copy, dot
 
-# Locate the dynamic library.
-@static if is_apple()
-    dllname(part::String) = "lib$(part).dylib"
-elseif is_windows()
-    dllname(part::String) = "$(part).dll"
-else # assume is_unix():
-    dllname(part::String) = "lib$(part).so"
+if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+    include("../deps/deps.jl")
+else
+    error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
 end
 
-const opklib = Base.Libdl.find_library(dllname("opk"))
-
-# if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-#     include("../deps/deps.jl")
-# else
-#     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
-# end
-
 """
-`Float` is any floating point type supported by the library.
+`Floats` is any floating point type supported by the library.
 """
-typealias Float Union{Cfloat,Cdouble}
-
-cint(i::Integer) = convert(Cint, i)
-cuint(i::Integer) = convert(Cuint, i)
+typealias Floats Union{Cfloat,Cdouble}
 
 #------------------------------------------------------------------------------
 # CONSTANTS
@@ -62,7 +48,7 @@ function get_constant(name::AbstractString)
     status = ccall((:opk_get_integer_constant, opklib), Cint,
                    (Cstring, Ref{Clong}), name, value)
     status == 0 || throw(ArgumentError("unknown OptimPack constant \"$name\""))
-    cint(value[])
+    convert(Cint, value[])
 end
 
 for sym in (# status
@@ -117,15 +103,14 @@ end
 
 __error__(ptr::Ptr{UInt8}) = (ErrorException(bytestring(ptr)); nothing)
 
-const __cerror__ = cfunction(__error__, Void, (Ptr{UInt8},))
+const __cerror__ = Ref{Ptr{Void}}(0)
 
 function __init__()
+    __cerror__[] = cfunction(__error__, Void, (Ptr{UInt8},))
     ccall((:opk_set_error_handler, opklib), Ptr{Void}, (Ptr{Void},),
-          __cerror__)
+          __cerror__[])
     nothing
 end
-
-__init__()
 
 """
 `get_reason(s)` yields the textual reason for status `s`.
@@ -246,7 +231,7 @@ OptimPack.
 
 # Note: There are no needs to register a reference for the owner of a
 # vector (it already owns one internally).
-type DenseVariable{T<:Float,N} <: Variable
+type DenseVariable{T<:Floats,N} <: Variable
     handle::Ptr{Void}
     owner::DenseVariableSpace{T,N}
     array::Union{Array,Void}
@@ -263,7 +248,7 @@ __handle__(v::DenseVector) = v.handle
 """
 `v = create(s)` creates a new variable of the variable space `s`.
 """
-function create{T<:Float,N<:Integer}(space::DenseVariableSpace{T,N})
+function create{T<:Floats,N<:Integer}(space::DenseVariableSpace{T,N})
     ptr = ccall((:opk_vcreate, opklib), Ptr{Void}, (Ptr{Void},), space.handle)
     systemerror("failed to create vector", ptr == C_NULL)
     obj = DenseVariable{T,N}(ptr, space, nothing)
@@ -964,18 +949,18 @@ conjugate gradient method.
 
 See `vmlmb` for more details.
 """
-function nlcg{T<:Float,N}(fg!::Function, x0::DenseArray{T,N},
-                          flags::Integer=NLCG_DEFAULT.flags;
-                          lnsrch::LineSearch=default_nlcg_line_search(),
-                          delta::Real=NLCG_DEFAULT.delta,
-                          epsilon::Real=NLCG_DEFAULT.epsilon,
-                          fmin::Union{Real,Void}=nothing,
-                          gatol::Real=NLCG_DEFAULT.gatol,
-                          grtol::Real=NLCG_DEFAULT.grtol,
-                          stpmin::Real=NLCG_DEFAULT.stpmin,
-                          stpmax::Real=NLCG_DEFAULT.stpmax,
-                          maxeval::Integer=-1, maxiter::Integer=-1,
-                          verb::Bool=false, debug::Bool=false)
+function nlcg{T<:Floats,N}(fg!::Function, x0::DenseArray{T,N},
+                           flags::Integer=NLCG_DEFAULT.flags;
+                           lnsrch::LineSearch=default_nlcg_line_search(),
+                           delta::Real=NLCG_DEFAULT.delta,
+                           epsilon::Real=NLCG_DEFAULT.epsilon,
+                           fmin::Union{Real,Void}=nothing,
+                           gatol::Real=NLCG_DEFAULT.gatol,
+                           grtol::Real=NLCG_DEFAULT.grtol,
+                           stpmin::Real=NLCG_DEFAULT.stpmin,
+                           stpmax::Real=NLCG_DEFAULT.stpmax,
+                           maxeval::Integer=-1, maxiter::Integer=-1,
+                           verb::Bool=false, debug::Bool=false)
     # Create an optimizer and solve the problem.
     dims = size(x0)
     space = DenseVariableSpace(T, dims)
@@ -1010,20 +995,20 @@ with `x` the current variables and `g` a Julia array (of same type and
 simensions as `x`) to store the gradient of the function.  The value returned
 by `fg!` is `f(x)`.
 """
-function vmlmb{T<:Float,N}(fg!::Function, x0::DenseArray{T,N};
-                           lower=nothing, upper=nothing,
-                           lnsrch::LineSearch=default_vmlmb_line_search(),
-                           mem::Integer=VMLMB_DEFAULT.mem,
-                           delta::Real=VMLMB_DEFAULT.delta,
-                           epsilon::Real=VMLMB_DEFAULT.epsilon,
-                           gatol::Real=VMLMB_DEFAULT.gatol,
-                           grtol::Real=VMLMB_DEFAULT.grtol,
-                           stpmin::Real=VMLMB_DEFAULT.stpmin,
-                           stpmax::Real=VMLMB_DEFAULT.stpmax,
-                           blmvm::Bool=(VMLMB_DEFAULT.blmvm != 0),
-                           savemem::Bool=(VMLMB_DEFAULT.savemem != 0),
-                           maxeval::Integer=-1, maxiter::Integer=-1,
-                           verb::Bool=false, debug::Bool=false)
+function vmlmb{T<:Floats,N}(fg!::Function, x0::DenseArray{T,N};
+                            lower=nothing, upper=nothing,
+                            lnsrch::LineSearch=default_vmlmb_line_search(),
+                            mem::Integer=VMLMB_DEFAULT.mem,
+                            delta::Real=VMLMB_DEFAULT.delta,
+                            epsilon::Real=VMLMB_DEFAULT.epsilon,
+                            gatol::Real=VMLMB_DEFAULT.gatol,
+                            grtol::Real=VMLMB_DEFAULT.grtol,
+                            stpmin::Real=VMLMB_DEFAULT.stpmin,
+                            stpmax::Real=VMLMB_DEFAULT.stpmax,
+                            blmvm::Bool=(VMLMB_DEFAULT.blmvm != 0),
+                            savemem::Bool=(VMLMB_DEFAULT.savemem != 0),
+                            maxeval::Integer=-1, maxiter::Integer=-1,
+                            verb::Bool=false, debug::Bool=false)
     # Create an optimizer and solve the problem.
     #options = VMLMBoptions(mem=mem)
     options = VMLMBoptions(delta=delta, epsilon=epsilon,

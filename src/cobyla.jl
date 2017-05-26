@@ -174,9 +174,14 @@ function _objfun(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
     convert(Cdouble, (m > 0 ? f(x, unsafe_wrap(Array, _c, m)) : f(x)))::Cdouble
 end
 
-const _objfun_c = cfunction(_objfun, Cdouble,
+const _objfun_c = Ref{Ptr{Void}}(0)
+
+function __init__()
+    global _objfun_c
+    _objfun_c[] = cfunction(_objfun, Cdouble,
                             (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
                              Ptr{Cdouble}, Ptr{Void}))
+end
 
 """
 The methods:
@@ -216,7 +221,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
                            Ptr{Cdouble}, Ptr{Cptrdiff_t}), n, m,
-                          maximize, _objfun_c, pointer_from_objref(fc),
+                          maximize, _objfun_c[], pointer_from_objref(fc),
                           x, sclptr, rhobeg, rhoend, verbose, maxeval,
                           work, iact))
     if check && status != SUCCESS
@@ -241,7 +246,7 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
-                          n, m, _objfun_c, pointer_from_objref(f),
+                          n, m, _objfun_c[], pointer_from_objref(f),
                           x, rhobeg, rhoend, verbose, maxeval, work, iact))
     if check && status != SUCCESS
         error(getreason(status))
