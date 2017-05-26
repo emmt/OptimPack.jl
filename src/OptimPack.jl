@@ -16,6 +16,8 @@ isdefined(Base, :__precompile__) && __precompile__(true)
 
 module OptimPack
 
+using Compat
+
 export nlcg, vmlmb, spg2
 
 export fzero, fmin, fmin_global

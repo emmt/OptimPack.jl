@@ -14,9 +14,15 @@ provides(Sources,
 
 prefix = joinpath(BinDeps.depsdir(optimpack), "usr")
 srcdir = joinpath(BinDeps.depsdir(optimpack), "src", unpacked_dir)
-@static if is_unix() libfilename = "libopk.so"
-end
-@static if is_apple() libfilename = "libopk.dylib"
+name = "opk"
+@compat @static if is_unix()
+    libfilename = "lib$(name).so"
+elseif is_apple()
+    libfilename = "lib$(name).dylib"
+#elseif is_windows()
+#    libfilename = "$(name).dll"
+else
+    error("unknown architecture")
 end
 destlib = joinpath(prefix, "lib", libfilename)
 
