@@ -17,6 +17,7 @@ isdefined(Base, :__precompile__) && __precompile__(true)
 module OptimPack
 
 using Compat
+using Compat: String
 
 export nlcg, vmlmb, spg2
 
@@ -34,7 +35,7 @@ end
 """
 `Floats` is any floating point type supported by the library.
 """
-typealias Floats Union{Cfloat,Cdouble}
+const Floats = Union{Cfloat,Cdouble}
 
 #------------------------------------------------------------------------------
 # CONSTANTS
@@ -136,7 +137,7 @@ member which stores the address of the OptimPack object.  To avoid conflicts
 with Julia `Vector` type, an OptimPack vector (*i.e.* `opk_vector_t`)
 corresponds to the type `Variable` in Julia.
 """
-abstract Object
+@compat abstract type Object end
 
 """
 Reference Counting
@@ -170,7 +171,7 @@ end
 #------------------------------------------------------------------------------
 # VARIABLE SPACE
 
-abstract VariableSpace <: Object
+@compat abstract type VariableSpace <: Object end
 """
 Variable Space
 ==============
@@ -223,7 +224,7 @@ end
 #------------------------------------------------------------------------------
 # VARIABLES
 
-abstract Variable <: Object
+@compat abstract type Variable <: Object end
 """
 Variables
 =========
@@ -398,7 +399,7 @@ end
 #------------------------------------------------------------------------------
 # OPERATORS
 
-abstract Operator <: Object
+@compat abstract type Operator <: Object end
 
 for (jf, cf) in ((:apply_direct!, :opk_apply_direct),
                  (:apply_adoint!, :opk_apply_adjoint),
@@ -421,7 +422,7 @@ end
 #------------------------------------------------------------------------------
 # CONVEX SETS
 
-abstract ConvexSet <: Object
+@compat abstract type ConvexSet <: Object end
 
 function checkbound(name::AbstractString, b::Variable, space::VariableSpace)
     if owner(b) != space
@@ -539,7 +540,7 @@ end
 #------------------------------------------------------------------------------
 # LINE SEARCH METHODS
 
-abstract LineSearch <: Object
+@compat abstract type LineSearch <: Object end
 
 type ArmijoLineSearch <: LineSearch
     handle::Ptr{Void}
@@ -636,11 +637,11 @@ get_xtol(ls::MoreThuenteLineSearch) = ls.xtol
 #------------------------------------------------------------------------------
 # NON LINEAR LIMITED-MEMORY OPTIMIZERS
 
-abstract LimitedMemoryOptimizer <: Object
+@compat abstract type LimitedMemoryOptimizer <: Object end
 
-abstract LimitedMemoryOptimizerOptions
+@compat abstract type LimitedMemoryOptimizerOptions end
 
-abstract LimitedMemoryOptimizerDriver <: LimitedMemoryOptimizer
+@compat abstract type LimitedMemoryOptimizerDriver <: LimitedMemoryOptimizer end
 
 type VMLMBoptions <: LimitedMemoryOptimizerOptions
     # Relative size for a small step.

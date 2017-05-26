@@ -14,6 +14,8 @@
 
 module Powell
 
+using Compat
+
 export
     iterate,
     restart,
@@ -36,9 +38,9 @@ import Base: ==
 
 import ..opklib
 
-abstract AbstractStatus
+@compat abstract type AbstractStatus end
 
-abstract AbstractContext
+@compat abstract type AbstractContext end
 
 =={T<:AbstractStatus}(a::T, b::T) = a._code == b._code
 ==(a::AbstractStatus, b::AbstractStatus) = false

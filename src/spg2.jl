@@ -33,10 +33,14 @@ type SpgResult{T,N}
     pcnt::Int
     iter::Int
     status::Symbol
-    SpgResult(x::DenseArray{T,N}, xbest::DenseArray{T,N}) = new(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :WORK_IN_PROGRESS)
+    #(::Type{SpgResult(x::DenseArray{T,N}}){T,N}, xbest::DenseArray{T,N}) =
+    #    new{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :WORK_IN_PROGRESS)
 end
+SpgResult{T,N}(x::DenseArray{T,N}, xbest::DenseArray{T,N}) =
+    SpgResult{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :WORK_IN_PROGRESS)
 
-function spg2{T,N}(fg!::Function, prj!::Function, x0::DenseArray{T,N}, m::Integer;
+function spg2{T,N}(fg!::Function, prj!::Function,
+                   x0::DenseArray{T,N}, m::Integer;
                    maxit::Integer=-1, maxfc::Integer=-1,
                    eps1::Real=1e-6, eps2::Real=1e-6,
                    eta::Real=1.0, ftol::Real=1e-4,

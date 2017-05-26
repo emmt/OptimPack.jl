@@ -171,7 +171,11 @@ function fzero(f::Function, a::Real, b::Real;
             # Bisection.
             d = e = m
         else
-            local p::T, q::T, r::T, s::T = fb/fa, two_p::T
+            local p::T
+            local q::T
+            local r::T
+            local s::T = fb/fa
+            local two_p::T
             if a == c
                 # Linear interpolation.
                 p = TWO*m*s
