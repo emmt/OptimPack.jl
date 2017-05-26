@@ -1,4 +1,5 @@
 using BinDeps
+using Compat
 
 const version = "3.0.1"
 const unpacked_dir = "optimpack-$version"
