@@ -45,3 +45,4 @@ provides(SimpleBuild,
          optimpack)
 
 @BinDeps.install Dict(:libopk => :opklib)
+run(`ls -l "$destdir"`)
