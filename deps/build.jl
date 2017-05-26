@@ -15,6 +15,7 @@ provides(Sources,
 
 prefix = joinpath(BinDeps.depsdir(optimpack), "usr")
 srcdir = joinpath(BinDeps.depsdir(optimpack), "src", unpacked_dir)
+libdir = joinpath(prefix, "lib")
 name = "opk"
 @compat @static if is_unix()
     libfilename = "lib$(name).so"
@@ -25,7 +26,7 @@ elseif is_apple()
 else
     error("unknown architecture")
 end
-destlib = joinpath(prefix, "lib", libfilename)
+destlib = joinpath(libdir, libfilename)
 
 provides(SimpleBuild,
          (@build_steps begin
@@ -45,4 +46,4 @@ provides(SimpleBuild,
          optimpack)
 
 @BinDeps.install Dict(:libopk => :opklib)
-run(`ls -l "$destdir"`)
+run(`ls -l "$libdir"`)
