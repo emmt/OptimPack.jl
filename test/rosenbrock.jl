@@ -1,6 +1,3 @@
-using OptimPack
-using Base.Test
-
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
   x0[1:2:end] = -1.2
   x0[2:2:end] =  1.0
@@ -26,7 +23,7 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   T = (single ? Float32 : Float64)
   x0 = Array(T, n)
   rosenbrock_init!(x0)
-  lbfgs(rosenbrock_fg!, x0, m, verb=true)
+  lbfgs(rosenbrock_fg!, x0, m, verb=VERBOSE)
 end
 
 # Run tests in double and single precisions.
@@ -36,28 +33,26 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     rosenbrock_init!(x0)
 
     @printf("\nTesting NLCG in %s precision\n", prec)
-    x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
+    x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=VERBOSE)
     @test_approx_eq_eps x1 ones(T,20) 1e-3
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
-    x2 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true)
+    x2 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE)
                         #scaling=OptimPack.SCALING_OREN_SPEDICATO)
     @test_approx_eq_eps x2 ones(T,20) 1e-3
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
-    x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, mem=15)
+    x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, mem=15)
                         #scaling=OptimPack.SCALING_OREN_SPEDICATO)
     @test_approx_eq_eps x3 ones(T,20) 1e-3
 
     @printf("\nTesting VMLMB in %s precision with nonnegativity\n", prec)
-    x4 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, lower=0)
+    x4 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, lower=0)
     @test_approx_eq_eps x4 ones(T,20) 1e-3
 
     #@printf("\nTesting VMLM in %s precision with Barzilai & Borwein scaling\n", prec)
-    #x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true,
+    #x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE,
     #                     scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
     #@test_approx_eq_eps x3 ones(T,20) 1e-4
 
 end
-
-nothing
