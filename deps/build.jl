@@ -48,6 +48,3 @@ provides(SimpleBuild,
          optimpack)
 
 @BinDeps.install Dict(:libopk => :opklib)
-
-# List installed libraries (for debugging installation).
-run(`ls -l "$libdir"`)
