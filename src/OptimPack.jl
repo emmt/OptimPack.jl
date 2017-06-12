@@ -27,7 +27,7 @@ export fzero, fmin, fmin_global
 import Base: ENV, size, length, eltype, ndims, copy, dot
 
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include("../deps/deps.jl")
+    include(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
 else
     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
 end

@@ -42,12 +42,10 @@ provides(SimpleBuild,
                               `./configure --enable-shared --disable-static --prefix="$prefix"`
                               `make`
                               `make install`
+                              `ls -l "$libdir"`
                           end)
              end
          end),
          optimpack)
 
 @BinDeps.install Dict(:libopk => :opklib)
-
-# List installed libraries (for debugging installation).
-run(`ls -l "$libdir"`)
