@@ -18,9 +18,6 @@
 
 module Brent
 
-# Use the same floating point type for scalars as in OptimPack.
-import OptimPack.Float
-
 export fzero, fmin, fmin1, fmin2, fmin3, fminbrkt
 
 """
@@ -103,7 +100,7 @@ value of an abscissa for which `f` is approximately zero in `[a,b]`; `fx =
 f(x)` is the function value at `x`.
 
 """
-fzero(f, a::Real, b::Real; kwds...) = fzero(Float, f, a, b; kwds...)
+fzero(f, a::Real, b::Real; kwds...) = fzero(Float64, f, a, b; kwds...)
 
 function fzero{T<:AbstractFloat}(::Type{T}, f, a::Real, b::Real;
                                  atol::Real = fzero_atol(T),
