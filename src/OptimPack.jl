@@ -23,13 +23,19 @@ export nlcg, vmlmb, spg2
 export fzero, fmin, fmin_global
 
 # Functions must be imported to be extended with new methods.
-import Base: ENV, size, length, eltype, ndims, copy, dot
+import Base: size, length, eltype, ndims, copy, dot
 
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
 else
     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
 end
+
+"""
+`Float` is the type of all floating point scalars, it is currently an alias to
+`Cdouble` which is itself an alias to `Float64`.
+"""
+const Float = Cdouble
 
 """
 `Floats` is any floating point type supported by the library.
@@ -1086,7 +1092,12 @@ end
 
 # Load other components.
 include("brent.jl")
+include("bradi.jl")
 include("powell.jl")
 include("spg.jl")
+include("deprecations.jl")
+
+# Provide some aliases for popular algorithms.
+import .Brent: fmin, fzero
 
 end # module
