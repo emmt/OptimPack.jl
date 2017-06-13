@@ -106,7 +106,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
 end
 
 optimize(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    optimize(f, copy(x0), args...; kwds...)
+    optimize!(f, copy(x0), args...; kwds...)
 
 minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 maximize!(args...; kwds...) = optimize!(args...; maximize=true, kwds...)
