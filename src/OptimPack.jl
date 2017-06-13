@@ -35,11 +35,13 @@ function getreason end
 # Load other components.
 include("algebra.jl"); importall .Algebra
 include("conjgrad.jl")
+include("linesearches.jl")
+include("quasinewton.jl")
+include("spg.jl")
 include("clib.jl")
 include("brent.jl")
 include("bradi.jl")
 include("powell.jl")
-include("spg.jl")
 include("deprecations.jl")
 
 # Provide some aliases for popular algorithms.

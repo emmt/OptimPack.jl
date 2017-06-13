@@ -95,20 +95,19 @@ The following keywords are available:
 
 * `maxfc` specifies the maximum number of function evaluations.
 
-* `ws` is an instance of `Info` to store information about the final
-  iterate.
+* `ws` is an instance of `Info` to store information about the final iterate.
 
 * `verb` indicates whether to print some information at each iteration.
 
 * `printer` specifies a subroutine to print some information at each iteration.
   This subroutine will be called as `printer(io, ws)` with `io` the output
-  stream and `ws` an instance of `Info` with information about the current
+  stream and `ws` an instance of `SPG.Info` with information about the current
   iterate.
 
 * `io` specifes the output stream for iteration information.  It is `STDOUT` by
   default.
 
-The `Info` type has the following members:
+The `SPG.Info` type has the following members:
 
 * `f` is the function value.
 * `fbest` is the best function value so far.
