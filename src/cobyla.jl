@@ -19,7 +19,7 @@ export
 
 # FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
 #        on the same line as `import`
-import ...opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
+import ...CLib.opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
 # The dynamic library implementing the method.
 const _LIB = opklib

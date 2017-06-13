@@ -17,7 +17,7 @@ export
     bobyqa,
     bobyqa!
 
-import ...opklib, ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
+import ...CLib.opklib, ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
 
 # The dynamic library implementing the method.
 const _LIB = opklib
