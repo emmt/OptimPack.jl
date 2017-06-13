@@ -3,14 +3,13 @@
 #
 # Julia wrapper for OptimPack.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # This file is part of OptimPack.jl which is licensed under the MIT "Expat"
 # License:
 #
 # Copyright (C) 2014-2017, Éric Thiébaut.
 #
-# ----------------------------------------------------------------------------
 
 isdefined(Base, :__precompile__) && __precompile__(true)
 
@@ -1086,8 +1085,8 @@ function solve(opt::LimitedMemoryOptimizer, fg!::Function, x0::DenseArray;
 end
 
 # Load other components.
-include("Brent.jl")
+include("brent.jl")
 include("powell.jl")
-include("spg2.jl")
+include("spg.jl")
 
 end # module
