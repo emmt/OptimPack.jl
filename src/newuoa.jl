@@ -3,14 +3,13 @@
 #
 # Julia interface to Mike Powell's NEWUOA method.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License:
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License:
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
-# ----------------------------------------------------------------------------
 
 module Newuoa
 
@@ -22,8 +21,10 @@ export
 #        on the same line as `import`
 import ...opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
-const DLL = opklib
+# The dynamic library implementing the method.
+const _LIB = opklib
 
+# Status returned by most functions of the library.
 immutable Status <: AbstractStatus
     _code::Cint
 end
@@ -44,7 +45,7 @@ const CORRUPTED            = Status(-9)
 
 # Get a textual explanation of the status returned by NEWUOA.
 function getreason(status::Status)
-    ptr = ccall((:newuoa_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:newuoa_reason, _LIB), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown NEWUOA status: ", status._code)
     end
@@ -161,8 +162,9 @@ function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Void})
     convert(Cdouble, f(x))::Cdouble
 end
 
+# Addresses of callbacks cannot be precompiled so we set them at run time in
+# the __init__() method of the module.
 const _objfun_c = Ref{Ptr{Void}}(0)
-
 function __init__()
     global _objfun_c
     _objfun_c[] = cfunction(_objfun, Cdouble,
@@ -204,7 +206,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     work = Array{Cdouble}(nw)
-    status = Status(ccall((:newuoa_optimize, DLL), Cint,
+    status = Status(ccall((:newuoa_optimize, _LIB), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
@@ -228,7 +230,7 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
                  check::Bool = true)
     n = length(x)
     work = Array{Cdouble}(_wslen(n, npt))
-    status = Status(ccall((:newuoa, DLL), Cint,
+    status = Status(ccall((:newuoa, _LIB), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}), n, npt, _objfun_c[],
@@ -279,7 +281,7 @@ function create(n::Integer, rhobeg::Real, rhoend::Real;
                        npt::Integer = 2*length(x) + 1,
                        verbose::Integer = 0,
                        maxeval::Integer = 30*length(x))
-    ptr = ccall((:newuoa_create, DLL), Ptr{Void},
+    ptr = ccall((:newuoa_create, _LIB), Ptr{Void},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
                 n, npt, rhobeg, rhoend, verbose, maxeval)
@@ -290,30 +292,29 @@ function create(n::Integer, rhobeg::Real, rhoend::Real;
         error(reason)
     end
     ctx = Context(ptr, n, npt, rhobeg, rhoend, verbose, maxeval)
-    finalizer(ctx, ctx -> ccall((:newuoa_delete, DLL), Void,
+    finalizer(ctx, ctx -> ccall((:newuoa_delete, _LIB), Void,
                                 (Ptr{Void},), ctx.ptr))
     return ctx
 end
 
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
-    Status(ccall((:newuoa_iterate, DLL), Cint,
+    Status(ccall((:newuoa_iterate, _LIB), Cint,
                        (Ptr{Void}, Cdouble, Ptr{Cdouble}),
                        ctx.ptr, f, x))
 end
 
 restart(ctx::Context) =
-    Status(ccall((:newuoa_restart, DLL), Cint, (Ptr{Void},), ctx.ptr))
+    Status(ccall((:newuoa_restart, _LIB), Cint, (Ptr{Void},), ctx.ptr))
 
 getstatus(ctx::Context) =
-    Status(ccall((:newuoa_get_status, DLL), Cint, (Ptr{Void},),
-                       ctx.ptr))
+    Status(ccall((:newuoa_get_status, _LIB), Cint, (Ptr{Void},), ctx.ptr))
 
 getncalls(ctx::Context) =
-    Int(ccall((:newuoa_get_nevals, DLL), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
+    Int(ccall((:newuoa_get_nevals, _LIB), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
 
 getradius(ctx::Context) =
-    ccall((:newuoa_get_rho, DLL), Cdouble, (Ptr{Void},), ctx.ptr)
+    ccall((:newuoa_get_rho, _LIB), Cdouble, (Ptr{Void},), ctx.ptr)
 
 function runtests(;revcom::Bool=false, scale::Real=1)
     # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with

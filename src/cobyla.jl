@@ -3,14 +3,13 @@
 #
 # Julia interface to Mike Powell's COBYLA method.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License:
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License:
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
-# ----------------------------------------------------------------------------
 
 module Cobyla
 
@@ -22,8 +21,10 @@ export
 #        on the same line as `import`
 import ...opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
-const DLL = opklib
+# The dynamic library implementing the method.
+const _LIB = opklib
 
+# Status returned by most functions of the library.
 immutable Status <: AbstractStatus
     _code::Cint
 end
@@ -43,7 +44,7 @@ const CORRUPTED            = Status(-8)
 
 # Get a textual explanation of the status returned by COBYLA.
 function getreason(status::Status)
-    ptr = ccall((:cobyla_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:cobyla_reason, _LIB), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown COBYLA status: ", status._code)
     end
@@ -174,8 +175,9 @@ function _objfun(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
     convert(Cdouble, (m > 0 ? f(x, unsafe_wrap(Array, _c, m)) : f(x)))::Cdouble
 end
 
+# Addresses of callbacks cannot be precompiled so we set them at run time in
+# the __init__() method of the module.
 const _objfun_c = Ref{Ptr{Void}}(0)
-
 function __init__()
     global _objfun_c
     _objfun_c[] = cfunction(_objfun, Cdouble,
@@ -216,7 +218,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     end
     work = Array{Cdouble}(_wslen(n, m))
     iact = Array{Cptrdiff_t}(m + 1)
-    status = Status(ccall((:cobyla_optimize, DLL), Cint,
+    status = Status(ccall((:cobyla_optimize, _LIB), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
@@ -242,7 +244,7 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     work = Array{Cdouble}(_wslen(n, m))
     iact = Array{Cptrdiff_t}(m + 1)
-    status = Status(ccall((:cobyla, DLL), Cint,
+    status = Status(ccall((:cobyla, _LIB), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
@@ -301,7 +303,7 @@ function create(n::Integer, m::Integer,
     elseif rhoend < 0 || rhoend > rhobeg
         throw(ArgumentError("bad trust region radius parameters"))
     end
-    ptr = ccall((:cobyla_create, DLL), Ptr{Void},
+    ptr = ccall((:cobyla_create, _LIB), Ptr{Void},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
                 n, m, rhobeg, rhoend, verbose, maxeval)
@@ -312,7 +314,7 @@ function create(n::Integer, m::Integer,
         error(reason)
     end
     ctx = CobylaContext(ptr, n, m, rhobeg, rhoend, verbose, maxeval)
-    finalizer(ctx, ctx -> ccall((:cobyla_delete, DLL), Void,
+    finalizer(ctx, ctx -> ccall((:cobyla_delete, _LIB), Void,
                                 (Ptr{Void},), ctx.ptr))
     return ctx
 end
@@ -321,7 +323,7 @@ function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, DLL), Cint,
+    Status(ccall((:cobyla_iterate, _LIB), Cint,
                  (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
                  ctx.ptr, f, x, c))
 end
@@ -329,27 +331,27 @@ end
 function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, DLL), Cint,
+    Status(ccall((:cobyla_iterate, _LIB), Cint,
                  (Ptr{Void}, Cdouble, Ptr{Cdouble}, Ptr{Void}),
                  ctx.ptr, f, x, C_NULL))
 end
 
 restart(ctx::CobylaContext) =
-    Status(ccall((:cobyla_restart, DLL), Cint, (Ptr{Void},), ctx.ptr))
+    Status(ccall((:cobyla_restart, _LIB), Cint, (Ptr{Void},), ctx.ptr))
 
 getstatus(ctx::CobylaContext) =
-    Status(ccall((:cobyla_get_status, DLL), Cint, (Ptr{Void},), ctx.ptr))
+    Status(ccall((:cobyla_get_status, _LIB), Cint, (Ptr{Void},), ctx.ptr))
 
 # Get the current number of function evaluations.  Result is -1 if
 # something is wrong (e.g. CTX is NULL), nonnegative otherwise.
 getncalls(ctx::CobylaContext) =
-    Int(ccall((:cobyla_get_nevals, DLL), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
+    Int(ccall((:cobyla_get_nevals, _LIB), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
 
 getradius(ctx::CobylaContext) =
-    ccall((:cobyla_get_rho, DLL), Cdouble, (Ptr{Void},), ctx.ptr)
+    ccall((:cobyla_get_rho, _LIB), Cdouble, (Ptr{Void},), ctx.ptr)
 
 getlastf(ctx::CobylaContext) =
-    ccall((:cobyla_get_last_f, DLL), Cdouble, (Ptr{Void},), ctx.ptr)
+    ccall((:cobyla_get_last_f, _LIB), Cdouble, (Ptr{Void},), ctx.ptr)
 
 function runtests(;revcom::Bool = false, scale::Real = 1.0)
     # Beware that order of operations may affect the result (whithin
