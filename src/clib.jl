@@ -868,7 +868,7 @@ for (T, sfx) in ((LimitedMemoryOptimizerDriver, ""),
             nbytes = ccall(($(string("opk_get"*sfx*"_name")), opklib), Csize_t,
                            (Ptr{UInt8}, Csize_t, Ptr{Void}),
                            C_NULL, 0, f, opt.handle)
-            buf = Array(UInt8, nbytes)
+            buf = Array{UInt8}(nbytes)
             ccall(($(string("opk_get"*sfx*"_name")), opklib), Csize_t,
                   (Ptr{UInt8}, Csize_t, Ptr{Void}),
                   buf, nbytes, f, opt.handle)
@@ -879,7 +879,7 @@ for (T, sfx) in ((LimitedMemoryOptimizerDriver, ""),
             nbytes = ccall(($(string("opk_get"*sfx*"_description")), opklib),
                            Csize_t, (Ptr{UInt8}, Csize_t, Ptr{Void}),
                            C_NULL, 0, f, opt.handle)
-            buf = Array(UInt8, nbytes)
+            buf = Array{UInt8}(nbytes)
             ccall(($(string("opk_get"*sfx*"_description")), opklib), Csize_t,
                   (Ptr{UInt8}, Csize_t, Ptr{Void}), buf, nbytes, f, opt.handle)
             bytestring(buf)

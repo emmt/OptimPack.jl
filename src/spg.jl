@@ -182,7 +182,7 @@ function _spg2!{T}(fg!, prj!, x::T, m::Int, ws::Info,
     local pcnt::Int = 0
     local status::Int = SEARCHING
     if m > 1
-        lastfv = Array(Float, m)
+        lastfv = Array{Float}(m)
         fill!(lastfv, -Inf)
     end
     local x0::T = vcopy(x)
