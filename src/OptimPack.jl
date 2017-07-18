@@ -21,6 +21,7 @@ export
     fmin_global,
     nlcg,
     vmlmb,
+    vmlmb!,
     spg2,
     spg2!
 
@@ -47,7 +48,8 @@ include("deprecations.jl")
 
 # Provide some aliases for popular algorithms.
 import .Brent: fmin, fzero
-import .CLib: vmlmb, nlcg
+import .CLib: nlcg
 import .SPG: spg2, spg2!
+import .QuasiNewton: vmlmb, vmlmb!, EMULATE_BLMVM
 
 end # module
