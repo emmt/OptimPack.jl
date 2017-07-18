@@ -8,7 +8,7 @@ isdefined(:OptimPack) || include("../src/OptimPack.jl")
 module BradiTests
 
 using Base.Test
-import OptimPackNextGen: Bradi
+import OptimPack: Bradi
 
 # Simple parabola.  To be minimized over [-1,2].
 parabola(x) = x*x
