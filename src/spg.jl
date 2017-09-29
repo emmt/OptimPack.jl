@@ -51,11 +51,12 @@ Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 doc"""
 # Spectral Projected Gradient Method
 
-    x = spg2(fg!, prj!, x0, m)
-
-`spg2` implements the Spectral Projected Gradient Method (Version 2:
+The `spg2` method implements the Spectral Projected Gradient Method (Version 2:
 "continuous projected gradient direction") to find the local minimizers of a
-given function with convex constraints, described in the references below.
+given function with convex constraints, described in the references below.  A
+typical use is:
+
+    x = spg2(fg!, prj!, x0, m)
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
@@ -95,7 +96,8 @@ The following keywords are available:
 
 * `maxfc` specifies the maximum number of function evaluations.
 
-* `ws` is an instance of `Info` to store information about the final iterate.
+* `ws` is an instance of `SPG.Info` to store information about the final
+  iterate.
 
 * `verb` indicates whether to print some information at each iteration.
 
@@ -137,7 +139,7 @@ The `SPG.Info` type has the following members:
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
 """
-spg2{T}(fg!, prj!, x0::T, m::Integer; kwds...) =
+spg2(fg!, prj!, x0, m::Integer; kwds...) =
     spg2!(fg!, prj!, vcopy(x0), m; kwds...)
 
 REASON = Dict{Int,String}(SEARCHING => "Work in progress",
@@ -148,16 +150,16 @@ REASON = Dict{Int,String}(SEARCHING => "Work in progress",
 
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
-function spg2!{T}(fg!, prj!, x::T, m::Integer;
-                  ws::Info=Info(),
-                  maxit::Integer=typemax(Int),
-                  maxfc::Integer=typemax(Int),
-                  eps1::Real=1e-6,
-                  eps2::Real=1e-6,
-                  eta::Real=1.0,
-                  printer::Function=default_printer,
-                  verb::Bool=false,
-                  io::IO=STDOUT)
+function spg2!(fg!, prj!, x, m::Integer;
+               ws::Info=Info(),
+               maxit::Integer=typemax(Int),
+               maxfc::Integer=typemax(Int),
+               eps1::Real=1e-6,
+               eps2::Real=1e-6,
+               eta::Real=1.0,
+               printer::Function=default_printer,
+               verb::Bool=false,
+               io::IO=STDOUT)
     _spg2!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
            Float(eps1), Float(eps2), Float(eta),
            printer, verb, io)
