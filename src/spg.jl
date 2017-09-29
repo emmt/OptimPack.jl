@@ -28,7 +28,7 @@ using OptimPack.Algebra
 
 import OptimPack: Float, getreason
 
-export spg2, spg2!
+export spg, spg!
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
@@ -51,12 +51,12 @@ Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 doc"""
 # Spectral Projected Gradient Method
 
-The `spg2` method implements the Spectral Projected Gradient Method (Version 2:
+The `spg` method implements the Spectral Projected Gradient Method (Version 2:
 "continuous projected gradient direction") to find the local minimizers of a
 given function with convex constraints, described in the references below.  A
 typical use is:
 
-    x = spg2(fg!, prj!, x0, m)
+    x = spg(fg!, prj!, x0, m)
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
@@ -139,8 +139,8 @@ The `SPG.Info` type has the following members:
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
 """
-spg2(fg!, prj!, x0, m::Integer; kwds...) =
-    spg2!(fg!, prj!, vcopy(x0), m; kwds...)
+spg(fg!, prj!, x0, m::Integer; kwds...) =
+    spg!(fg!, prj!, vcopy(x0), m; kwds...)
 
 REASON = Dict{Int,String}(SEARCHING => "Work in progress",
                           INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
@@ -150,25 +150,25 @@ REASON = Dict{Int,String}(SEARCHING => "Work in progress",
 
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
-function spg2!(fg!, prj!, x, m::Integer;
-               ws::Info=Info(),
-               maxit::Integer=typemax(Int),
-               maxfc::Integer=typemax(Int),
-               eps1::Real=1e-6,
-               eps2::Real=1e-6,
-               eta::Real=1.0,
-               printer::Function=default_printer,
-               verb::Bool=false,
-               io::IO=STDOUT)
-    _spg2!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
-           Float(eps1), Float(eps2), Float(eta),
-           printer, verb, io)
+function spg!(fg!, prj!, x, m::Integer;
+              ws::Info=Info(),
+              maxit::Integer=typemax(Int),
+              maxfc::Integer=typemax(Int),
+              eps1::Real=1e-6,
+              eps2::Real=1e-6,
+              eta::Real=1.0,
+              printer::Function=default_printer,
+              verb::Bool=false,
+              io::IO=STDOUT)
+    _spg!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
+          Float(eps1), Float(eps2), Float(eta),
+          printer, verb, io)
 end
 
-function _spg2!{T}(fg!, prj!, x::T, m::Int, ws::Info,
-                   maxit::Int, maxfc::Int,
-                   eps1::Float, eps2::Float, eta::Float,
-                   printer::Function, verb::Bool, io::IO)
+function _spg!{T}(fg!, prj!, x::T, m::Int, ws::Info,
+                  maxit::Int, maxfc::Int,
+                  eps1::Float, eps2::Float, eta::Float,
+                  printer::Function, verb::Bool, io::IO)
     # Initialization.
     @assert m ≥ 1
     @assert eps1 ≥ 0.0

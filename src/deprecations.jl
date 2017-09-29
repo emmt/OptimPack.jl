@@ -15,3 +15,6 @@ import Base: @deprecate
 
 # Deprecated in v0.4.0
 @deprecate fmin_global OptimPack.Bradi.minimize
+@deprecate spg2(args...; kwds...) OptimPack.SPG.spg(args...; kwds...)
+@deprecate spg2!(args...; kwds...) OptimPack.SPG.spg!(args...; kwds...)
+
