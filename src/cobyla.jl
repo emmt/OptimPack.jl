@@ -175,12 +175,12 @@ function _objfun(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
     convert(Cdouble, (m > 0 ? f(x, unsafe_wrap(Array, _c, m)) : f(x)))::Cdouble
 end
 
-# Addresses of callbacks cannot be precompiled so we set them at run time in
-# the __init__() method of the module.
+# With precompilation, `__init__()` carries on initializations that must occur
+# at runtime like `cfunction` which returns a raw pointer.
 function __init__()
-    global _objfun_c = cfunction(_objfun, Cdouble,
-                                 (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
-                                  Ptr{Cdouble}, Ptr{Void}))
+    global const _objfun_c = cfunction(_objfun, Cdouble,
+                                       (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
+                                        Ptr{Cdouble}, Ptr{Void}))
 end
 
 """

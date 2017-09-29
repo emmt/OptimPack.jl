@@ -58,11 +58,11 @@ function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Void})
     convert(Cdouble, f(x))::Cdouble
 end
 
-# Addresses of callbacks cannot be precompiled so we set them at run time in
-# the __init__() method of the module.
+# With precompilation, `__init__()` carries on initializations that must occur
+# at runtime like `cfunction` which returns a raw pointer.
 function __init__()
-    global _objfun_c = cfunction(_objfun, Cdouble,
-                                 (Cptrdiff_t, Ptr{Cdouble}, Ptr{Void}))
+    global const _objfun_c = cfunction(_objfun, Cdouble,
+                                       (Cptrdiff_t, Ptr{Cdouble}, Ptr{Void}))
 end
 
 function optimize!(f::Function, x::DenseVector{Cdouble},

@@ -109,12 +109,12 @@ end
 
 __error__(ptr::Ptr{UInt8}) = (ErrorException(bytestring(ptr)); nothing)
 
-const __cerror__ = Ref{Ptr{Void}}(0)
-
+# With precompilation, `__init__()` carries on initializations that must occur
+# at runtime like `cfunction` which returns a raw pointer.
 function __init__()
-    __cerror__[] = cfunction(__error__, Void, (Ptr{UInt8},))
+    global const __cerror__ = cfunction(__error__, Void, (Ptr{UInt8},))
     ccall((:opk_set_error_handler, opklib), Ptr{Void}, (Ptr{Void},),
-          __cerror__[])
+          __cerror__)
     nothing
 end
 
