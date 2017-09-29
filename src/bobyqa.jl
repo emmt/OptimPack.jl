@@ -57,12 +57,11 @@ function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Void})
     convert(Cdouble, f(x))::Cdouble
 end
 
-const _objfun_c = Ref{Ptr{Void}}(0)
-
+# With precompilation, `__init__()` carries on initializations that must occur
+# at runtime like `cfunction` which returns a raw pointer.
 function __init__()
-    global _objfun_c
-    _objfun_c[] = cfunction(_objfun, Cdouble,
-                            (Cptrdiff_t, Ptr{Cdouble}, Ptr{Void}))
+    global const _objfun_c = cfunction(_objfun, Cdouble,
+                                       (Cptrdiff_t, Ptr{Cdouble}, Ptr{Void}))
 end
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
@@ -94,7 +93,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
                            Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
                           n, npt, (maximize ? Cint(1) : Cint(0)),
-                          _objfun_c[], pointer_from_objref(f),
+                          _objfun_c, pointer_from_objref(f),
                           x, xl, xu, sclptr, rhobeg, rhoend,
                           verbose, maxeval, work))
     if check && status != SUCCESS
@@ -128,7 +127,7 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
                            Ptr{Cdouble}),
-                          n, npt, _objfun_c[],
+                          n, npt, _objfun_c,
                           pointer_from_objref(f), x, xl, xu,
                           rhobeg, rhoend, verbose, maxeval, work))
     if check && status != SUCCESS
