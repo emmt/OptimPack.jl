@@ -22,6 +22,8 @@ export
 #        on the same line as `import`
 import ...opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
+using Compat
+
 const DLL = opklib
 
 immutable Status <: AbstractStatus
@@ -195,8 +197,8 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-optimize(fc::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    optimize!(fc, copy(x0), args...; kwds...)
+@compat optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+    optimize!(fc, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
                    m::Integer, rhobeg::Real, rhoend::Real;
