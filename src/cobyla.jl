@@ -27,6 +27,7 @@ import
     ..getradius,
     ..getreason,
     ..getstatus,
+    ..grow!,
     ..iterate,
     ..restart
 
@@ -177,6 +178,9 @@ maximize!(args...; kwds...) = optimize!(args...; maximize=true, kwds...)
 _wrklen(n::Integer, m::Integer) = _wrklen(Int(n), Int(m))
 _wrklen(n::Int, m::Int) = n*(3*n + 2*m + 11) + 4*m + 6
 
+# `_work(...)` yields a large enough workspace for NEWUOA.
+_work(::Type{T}, len::Integer) where {T} = Vector{T}(undef, len)
+
 # Wrapper for the objective function in COBYLA, the actual objective
 # function is provided by the client data as a `jl_value_t*` pointer.
 function _objfun(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
@@ -217,7 +221,9 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
                    maximize::Bool = false,
                    check::Bool = false,
                    verbose::Integer = 0,
-                   maxeval::Integer = 30*length(x))
+                   maxeval::Integer = 30*length(x),
+                   work::Vector{Cdouble} = _work(Cdouble, _wrklen(length(x), m)),
+                   iact::Vector{Cptrdiff_t} = _work(Cptrdiff_t, m + 1))
     n = length(x)
     nscl = length(scale)
     if nscl == 0
@@ -227,8 +233,8 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    work = Array{Cdouble}(undef, _wrklen(n, m))
-    iact = Array{Cptrdiff_t}(undef, m + 1)
+    grow!(work, _wrklen(n, m))
+    grow!(iact, m + 1)
     status = Status(ccall((:cobyla_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
@@ -251,10 +257,12 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                  m::Integer, rhobeg::Real, rhoend::Real;
                  check::Bool = true,
                  verbose::Integer = 0,
-                 maxeval::Integer = 30*length(x))
+                 maxeval::Integer = 30*length(x),
+                 work::Vector{Cdouble} = _work(Cdouble, _wrklen(length(x), m)),
+                 iact::Vector{Cptrdiff_t} = _work(Cptrdiff_t, m + 1))
     n = length(x)
-    work = Array{Cdouble}(undef, _wrklen(n, m))
-    iact = Array{Cptrdiff_t}(undef, m + 1)
+    grow!(work, _wrklen(n, m))
+    grow!(iact, m + 1)
     status = Status(ccall((:cobyla, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,

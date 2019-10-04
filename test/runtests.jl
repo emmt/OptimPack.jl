@@ -1,4 +1,5 @@
 module OptimPackTests
+
 using OptimPack
 using Compat.Test
 using Compat.Printf

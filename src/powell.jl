@@ -3,18 +3,15 @@
 #
 # Mike Powell's derivative free optimization methods for Julia.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # This file is part of OptimPack.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut <https://github.com/emmt/OptimPack.jl>.
 #
-# ----------------------------------------------------------------------------
 
 module Powell
-
-using Compat
 
 export
     iterate,
@@ -34,13 +31,14 @@ export
     bobyqa,
     bobyqa!
 
+using Compat
+
 import Base: ==, iterate
 
 import ..opklib
 
-@compat abstract type AbstractStatus end
-
-@compat abstract type AbstractContext end
+abstract type AbstractContext end
+abstract type AbstractStatus end
 
 ==(a::T, b::T) where {T<:AbstractStatus} = (a._code == b._code)
 ==(a::AbstractStatus, b::AbstractStatus) = false
@@ -163,6 +161,23 @@ otherwise.
 
 """
 function getradius end
+
+"""
+
+```julia
+grow!(x, n) -> x
+```
+
+grows vector `x` so that it has at least `n` elements, does nothing if `x` is
+large enough.  Argument `x` is returned.
+
+See also [`resize!`](@ref).
+
+"""
+grow!(x::Vector, n::Integer) = begin
+    length(x) < n && resize!(x, n)
+    return x
+end
 
 include("newuoa.jl")
 import .Newuoa: newuoa, newuoa!

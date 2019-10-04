@@ -27,6 +27,7 @@ import
     ..getradius,
     ..getreason,
     ..getstatus,
+    ..grow!,
     ..iterate,
     ..restart
 
@@ -131,6 +132,12 @@ The following keywords are available:
   of the objective function.  The default setting is the recommended value:
   `npt = 2n + 1` with `n = length(x)` the number of variables.
 
+* `work` specifies a workspace to (re)use.  It must be a vector of double
+  precision floating-point values.  If it is too small, its size is
+  automatically adjusted (by calling [`resize!`](@ref)).  This keyword is
+  useful to avoid any new allocation (and garbage colection) when several
+  similar optimizations are to be performed.
+
 
 ## References
 
@@ -160,9 +167,25 @@ maximize(args...; kwds...) = optimize(args...; maximize=true, kwds...)
 maximize!(args...; kwds...) = optimize!(args...; maximize=true, kwds...)
 @doc @doc(maximize) maximize!
 
-# Yield the number of elements in NEWUOA workspace.
-_wslen(n::Integer, npt::Integer) =
-    (npt + 13)*(npt + n) + div(3*n*(n + 3),2)
+# `_wrklen(...)` yields the number of elements in NEWUOA workspace.
+_wrklen(n::Integer, npt::Integer) = _wrklen(Int(n), Int(npt))
+_wrklen(n::Int, npt::Int) = (npt + 13)*(npt + n) + div(3*n*(n + 3),2)
+_wrklen(x::AbstractVector{<:AbstractFloat}, npt::Integer) =
+    _wrklen(length(x), npt)
+function _wrklen(x::AbstractVector{<:AbstractFloat},
+                 scl::AbstractVector{<:AbstractFloat},
+                 npt::Integer)
+    return _wrklen(x, npt) + length(scl)
+end
+
+# `_work(...)` yields a large enough workspace for NEWUOA.
+_work(x::AbstractVector{<:AbstractFloat}, npt::Integer) =
+    Vector{Cdouble}(undef, _wrklen(x, npt))
+function _work(x::AbstractVector{<:AbstractFloat},
+               scl::AbstractVector{<:AbstractFloat},
+               npt::Integer)
+    return Vector{Cdouble}(undef, _wrklen(x, scl, npt))
+end
 
 # Wrapper for the objective function in NEWUOA, the actual objective function
 # is provided by the client data as a `jl_value_t*` pointer.
@@ -203,19 +226,18 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
                    npt::Integer = 2*length(x) + 1,
                    check::Bool = true,
                    verbose::Integer = 0,
-                   maxeval::Integer = 30*length(x))
+                   maxeval::Integer = 30*length(x),
+                   work::Vector{Cdouble} = _work(x, scale, npt))
     n = length(x)
-    nw = _wslen(n, npt)
     nscl = length(scale)
     if nscl == 0
         sclptr = Ptr{Cdouble}(0)
     elseif nscl == n
         sclptr = pointer(scale)
-        nw += n
     else
         error("bad number of scaling factors")
     end
-    work = Array{Cdouble}(undef, nw)
+    grow!(work, _wrklen(x, scale, npt))
     status = Status(ccall((:newuoa_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
@@ -236,9 +258,10 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
                  npt::Integer = 2*length(x) + 1,
                  verbose::Integer = 0,
                  maxeval::Integer = 30*length(x),
-                 check::Bool = true)
+                 check::Bool = true,
+                 work::Vector{Cdouble} = _work(x, npt))
     n = length(x)
-    work = Array{Cdouble}(undef, _wslen(n, npt))
+    grow!(work, _wrklen(x, npt))
     status = Status(ccall((:newuoa, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
