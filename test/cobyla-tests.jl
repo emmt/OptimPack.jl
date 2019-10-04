@@ -1,6 +1,5 @@
 module CobylaTests
 
-using Compat.Test
 using Compat.Printf
 using OptimPack.Powell
 
@@ -311,23 +310,5 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
         @printf("  ------------------------------------------------------------------\n")
     end
 end
-
-function banner(str::AbstractString)
-    len = 75
-    line = repeat('*', len)
-    println()
-    println(line)
-    println("*** ", str, " ", repeat('*', max(3, len - length(str) - 5)))
-    println(line)
-end
-
-banner("Standard tests")
-runtests()
-
-banner("Tests with scale=0.7")
-runtests(scale=0.7)
-
-banner("Tests with reverse-communication")
-runtests(revcom=true)
 
 end # module
