@@ -12,7 +12,7 @@
 #
 # ----------------------------------------------------------------------------
 
-isdefined(Base, :__precompile__) && __precompile__(true)
+VERSION < v"0.7.0-beta2.199" && __precompile__(true)
 
 module OptimPack
 
