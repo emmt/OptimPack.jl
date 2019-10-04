@@ -20,7 +20,7 @@
 # "Expat" License:
 #
 # Copyright (C) 1973, Richard Brent.
-# Copyright (C) 2015, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut.
 #
 #-----------------------------------------------------------------------------
 
@@ -31,14 +31,14 @@
 
 # The following functions compute the default and minimal tolerances
 # for the tolearances of the Brent's methods.
-fmin_min_rtol(T) = convert(T,2*eps(T))
-fmin_def_rtol(T) = convert(T,sqrt(eps(T)))
-fmin_min_atol(T) = zero(T)
-fmin_def_atol(T) = convert(T,3*realmin(T))
-fzero_min_rtol(T) = zero(T)
-fzero_def_rtol(T) = convert(T,4*eps(T))
-fzero_min_atol(T) = zero(T)
-fzero_def_atol(T) = convert(T,2*realmin(T))
+fmin_min_rtol(::Type{T}) where {T<:AbstractFloat} = convert(T,2*eps(T))
+fmin_def_rtol(::Type{T}) where {T<:AbstractFloat} = convert(T,sqrt(eps(T)))
+fmin_min_atol(::Type{T}) where {T<:AbstractFloat} = zero(T)
+fmin_def_atol(::Type{T}) where {T<:AbstractFloat} = convert(T,3*floatmin(T))
+fzero_min_rtol(::Type{T}) where {T<:AbstractFloat} = zero(T)
+fzero_def_rtol(::Type{T}) where {T<:AbstractFloat} = convert(T,4*eps(T))
+fzero_min_atol(::Type{T}) where {T<:AbstractFloat} = zero(T)
+fzero_def_atol(::Type{T}) where {T<:AbstractFloat} = convert(T,2*floatmin(T))
 
 # Declare specialized versions of these functions for the common
 # floating-point types and manage to make them return a precomputed
@@ -60,6 +60,18 @@ fmin_get_atol(T, x) = (x == nothing ? fmin_def_atol(T) : convert(T, x))
 fmin_get_rtol(T, x) = (x == nothing ? fmin_def_rtol(T) : convert(T, x))
 fzero_get_atol(T, x, a, b) = convert(T, (x == nothing ? eps(T)*abs(a - b) : x))
 fzero_get_rtol(T, x) = (x == nothing ? fzero_def_rtol(T) : convert(T, x))
+
+# _flt(T,x) method is to fast convert x to a given floating point type T
+_flt(::Type{T}, x::T) where {T<:AbstractFloat} = x
+_flt(::Type{T}, x::Real) where {T<:AbstractFloat} = T(x)
+
+_flt(::Type{T}, x::AbstractRange{T}) where {T<:AbstractFloat} = x
+_flt(::Type{T}, x::AbstractRange{<:Real}) where {T<:AbstractFloat} =
+    convert(StepRangeLen{T}, x)
+
+_flt(::Type{T}, x::AbstractVector{T}) where {T<:AbstractFloat} = x
+_flt(::Type{T}, x::AbstractVector{<:Real}) where {T<:AbstractFloat} =
+    convert(AbstractVector{T}, x)
 
 #
 # `fzero()` seeks a local root of a function F(X) in an interval [A,B].
@@ -106,25 +118,39 @@ fzero_get_rtol(T, x) = (x == nothing ? fzero_def_rtol(T) : convert(T, x))
 #
 function fzero(f::Function, a::Real, b::Real;
                T::Type=Float64, atol=nothing, rtol=nothing)
+    # Enforce floating point type and get tolerances.
+    @assert T <: AbstractFloat
+    _a = T(a)
+    _b = T(b)
+    _atol = fzero_get_atol(T, atol, _a, _b)
+    _rtol = fzero_get_rtol(T, rtol)
+    return fzero(f, _a, _b, _atol, _rtol)
+end
+
+function fzero(f::Function, a::Real, b::Real, atol::Real, rtol::Real)
+    T = float(promote_type(typeof(a), typeof(b), typeof(atol), typeof(rtol)))
+    return fzero(T, f, a, b, atol, rtol)
+end
+
+function fzero(::Type{T}, f::Function, a::Real, b::Real,
+              atol::Real, rtol::Real) where {T<:AbstractFloat}
+    return fzero(f, _flt(T,a), _flt(T,b), _flt(T,atol), _flt(T,rtol))
+end
+
+function fzero(f::Function, a::T, b::T, atol::T, rtol::T) where {T<:AbstractFloat}
 
     # Explicitly declare types of variables to prevent accidental changes
     # of type during the execution of the code.  We also re-assign the
     # value of the passed arguments to force conversion (FIXME: there should
     # be a macro for that).
-    a::T = a
-    b::T = b
     local fa::T, fb::T, c::T, fc::T, tol::T, m::T, e::T, d::T
 
     # Some constants.
-    const ZERO::T = zero(T)
-    const ONE::T = one(T)
-    const TWO::T = ONE + ONE
-    const HALF::T = ONE/TWO
-    const THREE::T = ONE + TWO
-
-    # Get tolerance parameters.
-    atol::T = fzero_get_atol(T, atol, a, b)
-    rtol::T = fzero_get_rtol(T, rtol)
+    ZERO::T = zero(T)
+    ONE::T = one(T)
+    TWO::T = ONE + ONE
+    HALF::T = ONE/TWO
+    THREE::T = ONE + TWO
 
     # Compute the function value at the endpoints and check the
     # assumptions.
@@ -281,10 +307,26 @@ end
 #
 function fmin(f::Function, a::Real, b::Real;
               T::Type=Float64, atol=nothing, rtol=nothing)
+    # Enforce floating point type and get tolerances.
+    @assert T <: AbstractFloat
+    return fmin(f, _flt(T,a), _flt(T,b), fmin_get_atol(T, atol), fmin_get_rtol(T, rtol))
+end
+
+function fmin(f::Function, a::Real, b::Real, atol::Real, rtol::Real)
+    T = float(promote_type(typeof(a), typeof(b), typeof(atol), typeof(rtol)))
+    return fmin(T, f, a, b, atol, rtol)
+end
+
+function fmin(::Type{T}, f::Function, a::Real, b::Real,
+              atol::Real, rtol::Real) where {T<:AbstractFloat}
+    return fmin(f, _flt(T,a), _flt(T,b), _flt(T,atol), _flt(T,rtol))
+end
+
+function fmin(f::Function, a::T, b::T, atol::T, rtol::T) where {T<:AbstractFloat}
 
     # Enforce floating point type.
-    a::T = a
-    b::T = b
+    a::T = _a
+    b::T = _b
     atol::T = fmin_get_atol(T, atol)
     rtol::T = fmin_get_rtol(T, rtol)
 
@@ -294,7 +336,7 @@ function fmin(f::Function, a::Real, b::Real;
     end
 
     # Initialize the search.
-    const c::T = fmin_goldstp(T) # square of the inverse of the golden ratio
+    c::T = fmin_goldstp(T) # square of the inverse of the golden ratio
     x::T = a + c*(b - a)
     fx::T = f(x)
     _fmin(f, a, b, x, fx, x, fx, x, fx, atol, rtol)
@@ -303,8 +345,8 @@ end
 # This function is called to start Brent's algorithm with a single given
 # point, x, inside the search interval [a,b] and with known function value
 # fx = f(x).
-function _fmin1{T<:Real}(f::Function, a::T, b::T, x::T, fx::T,
-                         atol::T, rtol::T)
+function _fmin1(f::Function, a::T, b::T, x::T, fx::T,
+                atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered.
     if a > b
         a, b = b, a
@@ -318,8 +360,8 @@ end
 # This function is called to start Brent's algorithm with two given points,
 # (x and w not necessarily distinct) inside the search interval [a,b] and
 # with known function values (fx and fw).
-function _fmin2{T}(f::Function, a::T, b::T, x::T, fx::T, w::T, fw::T,
-                   atol::T, rtol::T)
+function _fmin2(f::Function, a::T, b::T, x::T, fx::T, w::T, fw::T,
+                atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given
     # points are in the interval.
     if a > b
@@ -339,8 +381,9 @@ end
 # This function is called to start Brent's algorithm with 3 given
 # points (x, w, and v not necessarily distinct) inside the search
 # interval [a,b] and with known function values (fx, fw and fv).
-function _fmin3{T<:Real}(f::Function, a::T, b::T, x::T, fx::T,
-                         w::T, fw::T, v::T, fv::T, atol::T, rtol::T)
+function _fmin3(f::Function, a::T, b::T, x::T, fx::T,
+                w::T, fw::T, v::T, fv::T,
+                atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered.
     if a > b
         a, b = b, a
@@ -390,8 +433,9 @@ end
 # The following function is the main loop of Brent's algorithm.  It assumes
 # that all parameters are properly set (as explained above).
 #
-function _fmin{T<:Real}(f::Function, a::T, b::T, x::T, fx::T,
-                        w::T, fw::T, v::T, fv::T, atol::T, rtol::T)
+function _fmin(f::Function, a::T, b::T, x::T, fx::T,
+               w::T, fw::T, v::T, fv::T,
+               atol::T, rtol::T) where {T<:AbstractFloat}
     # Explicitly declare types of variables to prevent accidental changes
     # of type during the execution of the code.  We also re-assign the
     # value of the passed arguments to force conversion (FIXME: there should
@@ -401,11 +445,11 @@ function _fmin{T<:Real}(f::Function, a::T, b::T, x::T, fx::T,
     w::T = w; fw::T = fw
     v::T = v; fv::T = fv
     atol::T = atol; rtol::T = rtol
-    const ZERO::T = zero(T)
-    const ONE::T = one(T)
-    const TWO::T = ONE + ONE
-    const HALF::T = ONE/TWO
-    const c::T = fmin_goldstp(T)
+    ZERO::T = zero(T)
+    ONE::T = one(T)
+    TWO::T = ONE + ONE
+    HALF::T = ONE/TWO
+    c::T = fmin_goldstp(T)
     local d::T = x - w
     local e::T = w - v
     local m::T, tol::T, t2::T, u::T, fu::T
@@ -493,8 +537,8 @@ end
 # minimum defined by 3 points (x, w and v) with known function values (fx,
 # fw and fv) and such that the least function value is at x which is inside
 # the interval [v,w].
-function _fminbrkt{T<:Real}(f::Function, x::T, fx::T, w::T, fw::T,
-                            v::T, fv::T, atol::T, rtol::T)
+function _fminbrkt(f::Function, x::T, fx::T, w::T, fw::T, v::T, fv::T,
+                   atol::T, rtol::T) where {T<:AbstractFloat}
     # Reorder the points as assumed by Brent's algorithm.
     if fv < fw
         v, fv, w, fw = w, fw, v, fv
@@ -518,9 +562,9 @@ end
 # values of X are such that no more than a single local minimum lies in any
 # subinterval [X(i),X(i+2)].
 #
-# X = linspace(A,B,N) if these arguments are supplied instead; i.e. the
-# global search is performed in the (included) interval [A,B] which is cut
-# in N pieces of equal lengths.
+# X = range(A,stop=B,length=N) if these arguments are supplied instead;
+# i.e. the global search is performed in the (included) interval [A,B] which is
+# cut in N pieces of equal lengths.
 #
 # If specified, keywords `atol` and `rtol` set the absolute and relative
 # tolerances for the precision.
@@ -535,13 +579,18 @@ end
 #
 # SEE ALSO: fmin.
 function fmin_global(f::Function, a::Real, b::Real, n::Integer;
-                     T::Type=Float64, atol=nothing, rtol=nothing)
-    fmin_global(f, linspace(convert(T,a), convert(T,b), n),
-                atol=atol, rtol=rtol)
+                     T::Type=Float64, kwds...)
+    return fmin_global(f, range(convert(T,a), stop=convert(T,b), length=n);
+                       T=T, kwds...)
 end
 
-function fmin_global{T<:Real}(f::Function, x::Vector{T};
-                              atol=nothing, rtol=nothing)
+function fmin_global(::Type{T}, f::Function, x::AbstractVector{<:Real},
+                     atol=Real, rtol=Real) where {T<:AbstractFloat}
+    return fmin_global(f, _flt(T, x), _flt(T, atol), _flt(T, rtol))
+end
+
+function fmin_global(f::Function, x::AbstractVector{T},
+                     atol::T, rtol::T) where {T<:AbstractFloat}
     atol::T = fmin_get_atol(T, atol)
     rtol::T = fmin_get_rtol(T, rtol)
 

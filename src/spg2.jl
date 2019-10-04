@@ -18,11 +18,11 @@
 # This file is part of OptimPack.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2014: Éric Thiébaut.
+# Copyright (C) 2014-2019: Éric Thiébaut.
 #
 # ----------------------------------------------------------------------------
 
-type SpgResult{T,N}
+struct SpgResult{T,N}
     x::DenseArray{T,N}
     xbest::DenseArray{T,N}
     f::Float64
@@ -36,28 +36,28 @@ type SpgResult{T,N}
     #(::Type{SpgResult(x::DenseArray{T,N}}){T,N}, xbest::DenseArray{T,N}) =
     #    new{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :WORK_IN_PROGRESS)
 end
-SpgResult{T,N}(x::DenseArray{T,N}, xbest::DenseArray{T,N}) =
+SpgResult(x::DenseArray{T,N}, xbest::DenseArray{T,N}) where {T,N} =
     SpgResult{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :WORK_IN_PROGRESS)
 
-function spg2{T,N}(fg!::Function, prj!::Function,
-                   x0::DenseArray{T,N}, m::Integer;
-                   maxit::Integer=-1, maxfc::Integer=-1,
-                   eps1::Real=1e-6, eps2::Real=1e-6,
-                   eta::Real=1.0, ftol::Real=1e-4,
-                   lmin::Real=1e-30, lmax::Real=1e+30,
-                   amin::Real=0.1, amax::Real=0.9,
-                   printer=nothing, verb::Bool=false)
+function spg2(fg!::Function, prj!::Function,
+              x0::DenseArray{T,N}, m::Integer;
+              maxit::Integer=-1, maxfc::Integer=-1,
+              eps1::Real=1e-6, eps2::Real=1e-6,
+              eta::Real=1.0, ftol::Real=1e-4,
+              lmin::Real=1e-30, lmax::Real=1e+30,
+              amin::Real=0.1, amax::Real=0.9,
+              printer=nothing, verb::Bool=false) where {T,N}
 
     # Allocate workspace.
     x0 = copy(x0)
     dims = size(x0)
     space = DenseVectorSpace(T, dims)
-    d = Array(T, dims)
-    g = Array(T, dims)
-    x = Array(T, dims)
-    g = Array(T, dims)
-    g0 = Array(T, dims)
-    xbest = Array(T, dims)
+    d = Array{T}(undef, dims)
+    g = Array{T}(undef, dims)
+    x = Array{T}(undef, dims)
+    g = Array{T}(undef, dims)
+    g0 = Array{T}(undef, dims)
+    xbest = Array{T}(undef, dims)
     _x = wrap(space, x)
     _g = wrap(space, g)
     _d = wrap(space, d)
@@ -69,7 +69,7 @@ function spg2{T,N}(fg!::Function, prj!::Function,
     ws = SpgResult(x, xbest)
     local sty, sts, f0, f
     if m > 1
-        lastfv = Array(T, m)
+        lastfv = Array{T}(undef, m)
         fill!(lastfv, inf(T))
     else
         lastfv = nothing
@@ -85,7 +85,7 @@ function spg2{T,N}(fg!::Function, prj!::Function,
 
     # Initialize best solution and best function value.
     ws.fbest = f
-    copy!(_xbest, _x)
+    copyto!(_xbest, _x)
 
     # Main loop.
     while true
@@ -158,8 +158,8 @@ function spg2{T,N}(fg!::Function, prj!::Function,
         end
 
         # Save current point.
-        copy!(_x0, _x)
-        copy!(_g0, _g)
+        copyto!(_x0, _x)
+        copyto!(_g0, _g)
         f0 = f
 
         # Compute the spectral projected gradient direction and <G,D>
@@ -181,7 +181,7 @@ function spg2{T,N}(fg!::Function, prj!::Function,
             # corresponding best point.
             if f < ws.fbest
                 ws.fbest = f
-                copy!(_xbest, _x)
+                copyto!(_xbest, _x)
             end
 
             # Test stopping criteria.

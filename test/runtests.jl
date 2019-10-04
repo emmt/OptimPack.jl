@@ -1,6 +1,7 @@
 module OptimPackTests
 using OptimPack
-using Base.Test
+using Compat.Test
+using Compat.Printf
 
 VERBOSE = true
 

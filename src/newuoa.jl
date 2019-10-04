@@ -3,14 +3,13 @@
 #
 # Julia interface to Mike Powell's NEWUOA method.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # This file is part of OptimPack.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut <https://github.com/emmt/OptimPack.jl>.
 #
-# ----------------------------------------------------------------------------
 
 module Newuoa
 
@@ -18,15 +17,25 @@ export
     newuoa,
     newuoa!
 
-# FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
-#        on the same line as `import`
-import ...opklib, ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
-
 using Compat
+using Compat.Printf
 
+import
+    ..AbstractContext,
+    ..AbstractStatus,
+    ..getncalls,
+    ..getradius,
+    ..getreason,
+    ..getstatus,
+    ..iterate,
+    ..restart
+
+# The dynamic library implementing the method.
+import ...opklib
 const DLL = opklib
 
-immutable Status <: AbstractStatus
+# Status returned by most functions of the library.
+struct Status <: AbstractStatus
     _code::Cint
 end
 
@@ -156,19 +165,19 @@ _wslen(n::Integer, npt::Integer) =
     (npt + 13)*(npt + n) + div(3*n*(n + 3),2)
 
 # Wrapper for the objective function in NEWUOA, the actual objective function
-# is provided by the client data.
-function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Void})
+# is provided by the client data as a `jl_value_t*` pointer.
+function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
-    convert(Cdouble, f(x))::Cdouble
+    return Cdouble(f(x))
 end
 
 # With precompilation, `__init__()` carries on initializations that must occur
-# at runtime like `cfunction` which returns a raw pointer.
-const _objfun_c = Ref{Ptr{Void}}()
+# at runtime like `@cfunction` which returns a raw pointer.
+const _objfun_c = Ref{Ptr{Cvoid}}()
 function __init__()
-    _objfun_c[] = cfunction(_objfun, Cdouble,
-                            (Cptrdiff_t, Ptr{Cdouble}, Ptr{Void}))
+    _objfun_c[] = @cfunction(_objfun, Cdouble,
+                             (Cptrdiff_t, Ptr{Cdouble}, Ptr{Cvoid}))
 end
 
 """
@@ -183,12 +192,13 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-@compat optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(f, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
+optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0),
+              args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble} = Array{Cdouble}(0),
+                   scale::DenseVector{Cdouble} = Cdouble[],
                    maximize::Bool = false,
                    npt::Integer = 2*length(x) + 1,
                    check::Bool = true,
@@ -198,21 +208,20 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     nw = _wslen(n, npt)
     nscl = length(scale)
     if nscl == 0
-        sclptr = convert(Ptr{Cdouble}, C_NULL)
+        sclptr = Ptr{Cdouble}(0)
     elseif nscl == n
         sclptr = pointer(scale)
         nw += n
     else
         error("bad number of scaling factors")
     end
-    work = Array{Cdouble}(nw)
+    work = Array{Cdouble}(undef, nw)
     status = Status(ccall((:newuoa_optimize, DLL), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
-                           Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
-                           Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
-                           Ptr{Cdouble}), n, npt, maximize, _objfun_c[],
-                          pointer_from_objref(f), x, sclptr, rhobeg,
-                          rhoend, verbose, maxeval, work))
+                          (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
+                           Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
+                           Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
+                          n, npt, maximize, _objfun_c[], f, x, sclptr,
+                          rhobeg, rhoend, verbose, maxeval, work))
     if check && status != SUCCESS
         error(getreason(status))
     end
@@ -229,12 +238,12 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
                  maxeval::Integer = 30*length(x),
                  check::Bool = true)
     n = length(x)
-    work = Array{Cdouble}(_wslen(n, npt))
+    work = Array{Cdouble}(undef, _wslen(n, npt))
     status = Status(ccall((:newuoa, DLL), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
+                          (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
-                           Cptrdiff_t, Ptr{Cdouble}), n, npt, _objfun_c[],
-                          pointer_from_objref(f), x, rhobeg, rhoend,
+                           Cptrdiff_t, Ptr{Cdouble}),
+                          n, npt, _objfun_c[], f, x, rhobeg, rhoend,
                           verbose, maxeval, work))
     if check && status != SUCCESS
         error(getreason(status))
@@ -246,8 +255,9 @@ newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     newuoa!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of NEWUOA.
-type Context <: AbstractContext
-    ptr::Ptr{Void}
+# Must be mutable to be finalized.
+mutable struct Context <: AbstractContext
+    ptr::Ptr{Cvoid}
     n::Int
     npt::Int
     rhobeg::Cdouble
@@ -264,7 +274,7 @@ end
 creates a new reverse communication workspace for NEWUOA algorithm.  A typical
 usage is:
 
-    x = Array{Cdouble}(n)
+    x = Array{Cdouble}(undef, n)
     x[...] = ... # initial solution
     ctx = Newuoa.create(n, rhobeg, rhoend; verbose=1, maxeval=500)
     status = getstatus(ctx)
@@ -278,10 +288,10 @@ usage is:
 
 """
 function create(n::Integer, rhobeg::Real, rhoend::Real;
-                       npt::Integer = 2*length(x) + 1,
-                       verbose::Integer = 0,
-                       maxeval::Integer = 30*length(x))
-    ptr = ccall((:newuoa_create, DLL), Ptr{Void},
+                npt::Integer = 2*length(x) + 1,
+                verbose::Integer = 0,
+                maxeval::Integer = 30*length(x))
+    ptr = ccall((:newuoa_create, DLL), Ptr{Cvoid},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
                 n, npt, rhobeg, rhoend, verbose, maxeval)
@@ -291,31 +301,29 @@ function create(n::Integer, rhobeg::Real, rhoend::Real;
                   : "invalid argument")
         error(reason)
     end
-    ctx = Context(ptr, n, npt, rhobeg, rhoend, verbose, maxeval)
-    finalizer(ctx, ctx -> ccall((:newuoa_delete, DLL), Void,
-                                (Ptr{Void},), ctx.ptr))
-    return ctx
+    return finalizer(ctx -> ccall((:newuoa_delete, DLL), Cvoid,
+                                  (Ptr{Cvoid},), ctx.ptr),
+                     Context(ptr, n, npt, rhobeg, rhoend, verbose, maxeval))
 end
 
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     Status(ccall((:newuoa_iterate, DLL), Cint,
-                       (Ptr{Void}, Cdouble, Ptr{Cdouble}),
+                       (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}),
                        ctx.ptr, f, x))
 end
 
 restart(ctx::Context) =
-    Status(ccall((:newuoa_restart, DLL), Cint, (Ptr{Void},), ctx.ptr))
+    Status(ccall((:newuoa_restart, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 getstatus(ctx::Context) =
-    Status(ccall((:newuoa_get_status, DLL), Cint, (Ptr{Void},),
-                       ctx.ptr))
+    Status(ccall((:newuoa_get_status, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 getncalls(ctx::Context) =
-    Int(ccall((:newuoa_get_nevals, DLL), Cptrdiff_t, (Ptr{Void},), ctx.ptr))
+    Int(ccall((:newuoa_get_nevals, DLL), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
 
 getradius(ctx::Context) =
-    ccall((:newuoa_get_rho, DLL), Cdouble, (Ptr{Void},), ctx.ptr)
+    ccall((:newuoa_get_rho, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 function runtests(;revcom::Bool=false, scale::Real=1)
     # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with
@@ -323,7 +331,7 @@ function runtests(;revcom::Bool=false, scale::Real=1)
     function ftest(x::DenseVector{Cdouble})
         n = length(x)
         np = n + 1
-        y = Array{Cdouble}(np, n)
+        y = Array{Cdouble}(undef, np, n)
         for j in 1:n
             y[1,j] = 1.0
             y[2,j] = x[j]*2.0 - 1.0
@@ -354,7 +362,7 @@ function runtests(;revcom::Bool=false, scale::Real=1)
     rhoend = 1e-6
     for n = 2:2:8
         npt = 2*n + 1
-        x = Array{Cdouble}(n)
+        x = Array{Cdouble}(undef, n)
         for i in 1:n
             x[i] = i/(n + 1)
         end
