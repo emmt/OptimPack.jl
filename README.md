@@ -2,7 +2,7 @@
 
 | **Documentation**               | **License**                     | **Build Status**                                                | **Code Coverage**                                                   |
 |:--------------------------------|:--------------------------------|:----------------------------------------------------------------|:--------------------------------------------------------------------|
-| [![][doc-dev-img]][doc-dev-url] | [![][license-img]][license-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
+| [![][doc-dev-img]][doc-dev-url] | [![][license-img]][license-url] | [![][travis-img]][travis-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
 
 
 OptimPack.jl is the Julia interface to [OptimPack][lib-optimpack-url], a C
