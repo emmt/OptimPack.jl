@@ -1,0 +1,15 @@
+name = "OptimPack"
+authors = ["Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>"]
+uuid = "d8d29b64-e5d8-11e9-1a77-2d3917d1c8b9"
+version = "0.3.0"
+
+[deps]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
