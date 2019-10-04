@@ -34,7 +34,7 @@ export
     bobyqa,
     bobyqa!
 
-import Base: ==
+import Base: ==, iterate
 
 import ..opklib
 
