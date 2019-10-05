@@ -1,6 +1,6 @@
 name = "OptimPack"
 authors = ["Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>"]
-uuid = "d8d29b64-e5d8-11e9-1a77-2d3917d1c8b9"
+uuid = "04a3d532-ba69-5937-989a-472689bdb720"
 version = "1.0.0"
 
 [deps]
