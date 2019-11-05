@@ -35,7 +35,10 @@ using Compat
 
 import Base: ==, iterate
 
-import ..opklib
+# The dynamic libraries implementing the methods.
+import ..libcobyla
+import ..libbobyqa
+import ..libnewuoa
 
 abstract type AbstractContext end
 abstract type AbstractStatus end

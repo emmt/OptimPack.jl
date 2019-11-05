@@ -11,16 +11,45 @@ library for solving large scale optimization problems.
 
 ## Installation
 
-From a Julia session, type the following commands:
+### Installation using pre-compiled libraries
+
+From a Julia session, press `]` to enter the Pkg REPL and type the following commands:
 ```julia
-Pkg.update()
-Pkg.add("OptimPack")
+(...) pkg> add https://github.com/emmt/OptimPack.jl
+(...) pkg> build OptimPack
 ```
-to install the package.  This just has to done once.
+to install and build the package.  This just has to be done once.
 
 To use the package in your code:
 ```julia
 using OptimPack
+```
+
+### Installation with your own compiled libraries
+
+By default, the package manager will attend to download precompiled OptimPack
+libraries for your architecture so that you have nothing to compile.  If your
+system is not part of the supported architectures or if you want to use
+OptimPack libraries compiled and installed by yourself (see intructions at
+[official OptimPack repository][lib-optimpack-url]) then you have to define 4
+environment variables **before** calling `build OptimPack`. Each of these
+environment variables specifies the full path to one of the OptimPack dynamic
+libraries. These environment variables can be set before starting Julia or at
+Julia REPL by:
+
+```julia
+ENV["OPTIMPACK_OPK_LIB"] = "/usr/local/lib/libopk.so"
+ENV["OPTIMPACK_COBYLA_LIB"] = "/usr/local/lib/libcobyla.so"
+ENV["OPTIMPACK_BOBYQA_LIB"] = "/usr/local/lib/libbobyqa.so"
+ENV["OPTIMPACK_NEWUOA_LIB"] = "/usr/local/lib/libnewuoa.so"
+```
+
+Then proceed as for the other installation method: press `]` to enter the Pkg
+REPL and type the following commands:
+
+```julia
+(...) pkg> add https://github.com/emmt/OptimPack.jl
+(...) pkg> build OptimPack
 ```
 
 

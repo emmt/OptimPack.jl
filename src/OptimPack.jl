@@ -49,7 +49,7 @@ OptimPack Constants
 """
 function get_constant(name::AbstractString)
     value = Ref{Clong}(0)
-    status = ccall((:opk_get_integer_constant, opklib), Cint,
+    status = ccall((:opk_get_integer_constant, libopk), Cint,
                    (Cstring, Ref{Clong}), name, value)
     status == 0 || throw(ArgumentError("unknown OptimPack constant \"$name\""))
     convert(Cint, value[])
@@ -112,7 +112,7 @@ const __cerror__ = Ref{Ptr{Cvoid}}(0)
 # at runtime like C-callable function pointers.
 function __init__()
     __cerror__[] = @cfunction(__error__, Nothing, (Ptr{UInt8},))
-    ccall((:opk_set_error_handler, opklib), Ptr{Cvoid}, (Ptr{Cvoid},),
+    ccall((:opk_set_error_handler, libopk), Ptr{Cvoid}, (Ptr{Cvoid},),
           __cerror__[])
     nothing
 end
@@ -121,11 +121,11 @@ end
 `get_reason(s)` yields the textual reason for status `s`.
 """
 function get_reason(s::Integer)
-    val = ccall((:opk_get_reason, opklib), Ptr{UInt8}, (Cint,), s)
+    val = ccall((:opk_get_reason, libopk), Ptr{UInt8}, (Cint,), s)
     val == C_NULL ? "" : unsafe_string(val)
 end
 
-guess_status() = ccall((:opk_guess_status, opklib), Cint, ())
+guess_status() = ccall((:opk_guess_status, libopk), Cint, ())
 
 #------------------------------------------------------------------------------
 # OBJECT MANAGEMENT
@@ -155,16 +155,16 @@ argument `ptr` is the address of the object.  This functions shall not be
 directly called by a user of the code.
 """
 function references(obj::Object)
-    ccall((:opk_get_object_references, opklib), Cptrdiff_t, (Ptr{Cvoid},),
+    ccall((:opk_get_object_references, libopk), Cptrdiff_t, (Ptr{Cvoid},),
           obj.handle)
 end
 
 function __hold_object__(ptr::Ptr{Cvoid})
-    ccall((:opk_hold_object, opklib), Ptr{Cvoid}, (Ptr{Cvoid},), ptr)
+    ccall((:opk_hold_object, libopk), Ptr{Cvoid}, (Ptr{Cvoid},), ptr)
 end
 
 function __drop_object__(ptr::Ptr{Cvoid})
-    ccall((:opk_drop_object, opklib), Nothing, (Ptr{Cvoid},), ptr)
+    ccall((:opk_drop_object, libopk), Nothing, (Ptr{Cvoid},), ptr)
 end
 
 @doc (@doc references) __hold_object__
@@ -216,7 +216,7 @@ for (T, f) in ((Cfloat, :opk_new_simple_float_vector_space),
     @eval begin
         function DenseVariableSpace(::Type{$T}, dims::NTuple{N,Int}) where {N}
             length::Int = checkdims(dims)
-            ptr = ccall(($(string(f)), opklib), Ptr{Cvoid}, (Cptrdiff_t,), length)
+            ptr = ccall(($(string(f)), libopk), Ptr{Cvoid}, (Cptrdiff_t,), length)
             systemerror("failed to create vector space", ptr == C_NULL)
             return finalizer(obj -> __drop_object__(obj.handle),
                              DenseVariableSpace{$T,N}(ptr, $T, dims, length))
@@ -258,7 +258,7 @@ __handle__(v::DenseVector) = v.handle
 `v = create(s)` creates a new variable of the variable space `s`.
 """
 function create(space::DenseVariableSpace{T,N}) where {T<:Floats,N<:Integer}
-    ptr = ccall((:opk_vcreate, opklib), Ptr{Cvoid}, (Ptr{Cvoid},), space.handle)
+    ptr = ccall((:opk_vcreate, libopk), Ptr{Cvoid}, (Ptr{Cvoid},), space.handle)
     systemerror("failed to create vector", ptr == C_NULL)
     return finalizer(obj -> __drop_object__(obj.handle),
                      DenseVariable{T,N}(ptr, space, nothing))
@@ -269,7 +269,7 @@ for (T, ctype) in ((Cfloat, "float"),
     @eval begin
         function wrap(s::DenseVariableSpace{$T,N}, a::DenseArray{$T,N}) where {N}
             @assert size(a) == size(s)
-            ptr = ccall(($("opk_wrap_simple_"*ctype*"_vector"), opklib),
+            ptr = ccall(($("opk_wrap_simple_"*ctype*"_vector"), libopk),
                         Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
                         s.handle, a, C_NULL, C_NULL)
             systemerror("failed to wrap vector", ptr == C_NULL)
@@ -280,7 +280,7 @@ for (T, ctype) in ((Cfloat, "float"),
         function wrap!(v::DenseVariable{$T,N}, a::DenseArray{$T,N}) where {N}
             @assert size(a) == size(v)
             @assert v.array != nothing
-            status = ccall(($("opk_rewrap_simple_"*ctype*"_vector"), opklib),
+            status = ccall(($("opk_rewrap_simple_"*ctype*"_vector"), libopk),
                            Cint, (Ptr{Cvoid}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
                            v.handle, a, C_NULL, C_NULL)
             systemerror("failed to re-wrap vector", status != SUCCESS)
@@ -308,7 +308,7 @@ and element type.
 `norm1(v)` returns the L1 norm (sum of absolute values) ov *variables* `v`.
 """
 function norm1(v::Variable)
-    ccall((:opk_vnorm1, opklib), Cdouble, (Ptr{Cvoid},), v.handle)
+    ccall((:opk_vnorm1, libopk), Cdouble, (Ptr{Cvoid},), v.handle)
 end
 
 """
@@ -316,7 +316,7 @@ end
 values) of *variables* `v`.
 """
 function norm2(v::Variable)
-    ccall((:opk_vnorm2, opklib), Cdouble, (Ptr{Cvoid},), v.handle)
+    ccall((:opk_vnorm2, libopk), Cdouble, (Ptr{Cvoid},), v.handle)
 end
 
 """
@@ -324,21 +324,21 @@ end
 `v`.
 """
 function norminf(v::Variable)
-    ccall((:opk_vnorminf, opklib), Cdouble, (Ptr{Cvoid},), v.handle)
+    ccall((:opk_vnorminf, libopk), Cdouble, (Ptr{Cvoid},), v.handle)
 end
 
 """
 `zero!(v)` fills *variables* `v` with zeros.
 """
 function zero!(v::Variable)
-    ccall((:opk_vzero, opklib), Nothing, (Ptr{Cvoid},), v.handle)
+    ccall((:opk_vzero, libopk), Nothing, (Ptr{Cvoid},), v.handle)
 end
 
 """
 `fill!(v, alpha)` fills *variables* `v` with value `alpha`.
 """
 function fill!(v::Variable, alpha::Real)
-    ccall((:opk_vfill, opklib), Nothing, (Ptr{Cvoid},Cdouble),
+    ccall((:opk_vfill, libopk), Nothing, (Ptr{Cvoid},Cdouble),
           v.handle, alpha)
 end
 
@@ -347,7 +347,7 @@ end
 *variables* `dst`.
 """
 function copyto!(dst::Variable, src::Variable)
-    ccall((:opk_vcopy, opklib), Nothing, (Ptr{Cvoid},Ptr{Cvoid}),
+    ccall((:opk_vcopy, libopk), Nothing, (Ptr{Cvoid},Ptr{Cvoid}),
           dst.handle, src.handle)
 end
 
@@ -356,7 +356,7 @@ end
 into the destination *variables* `dst`.
 """
 function scale!(dst::Variable, alpha::Real, src::Variable)
-    ccall((:opk_vscale, opklib), Nothing, (Ptr{Cvoid},Cdouble,Ptr{Cvoid}),
+    ccall((:opk_vscale, libopk), Nothing, (Ptr{Cvoid},Cdouble,Ptr{Cvoid}),
           dst.handle, alpha, src.handle)
 end
 
@@ -364,7 +364,7 @@ end
 `swap!(x, y)` exchanges the contents of *variables* `x` and `y`.
 """
 function swap!(x::Variable, y::Variable)
-    ccall((:opk_vswap, opklib), Nothing, (Ptr{Cvoid},Ptr{Cvoid}),
+    ccall((:opk_vswap, libopk), Nothing, (Ptr{Cvoid},Ptr{Cvoid}),
           x.handle, y.handle)
 end
 
@@ -372,7 +372,7 @@ end
 `dot(x, y)` returns the inner product of *variables* `x` and `y`.
 """
 function dot(x::Variable, y::Variable)
-    ccall((:opk_vdot, opklib), Cdouble, (Ptr{Cvoid},Ptr{Cvoid}),
+    ccall((:opk_vdot, libopk), Cdouble, (Ptr{Cvoid},Ptr{Cvoid}),
           x.handle, y.handle)
 end
 
@@ -386,7 +386,7 @@ the linear combination `alpha*x + beta*y + gamma*z`.
 function combine!(dst::Variable,
                   alpha::Real, x::Variable,
                   beta::Real,  y::Variable)
-    ccall((:opk_vaxpby, opklib), Nothing,
+    ccall((:opk_vaxpby, libopk), Nothing,
           (Ptr{Cvoid},Cdouble,Ptr{Cvoid},Cdouble,Ptr{Cvoid}),
           dst.handle, alpha, x.handle, beta, y.handle)
 end
@@ -395,7 +395,7 @@ function combine!(dst::Variable,
                   alpha::Real, x::Variable,
                   beta::Real,  y::Variable,
                   gamma::Real, z::Variable)
-    ccall((:opk_vaxpbypcz, opklib), Nothing,
+    ccall((:opk_vaxpbypcz, libopk), Nothing,
           (Ptr{Cvoid},Cdouble,Ptr{Cvoid},Cdouble,Ptr{Cvoid},Cdouble,Ptr{Cvoid}),
           dst.handle, alpha, x.handle, beta, y.handle, gamma, y.handle)
 end
@@ -412,7 +412,7 @@ for (jf, cf) in ((:apply_direct!, :opk_apply_direct),
         function $jf(op::Operator,
                      dst::Variable,
                      src::Variable)
-            status = ccall(($(string(cf)), opklib), Cint,
+            status = ccall(($(string(cf)), libopk), Cint,
                            (Ptr{Cvoid},Ptr{Cvoid},Ptr{Cvoid}),
                            op.handle, dst.handle, src.handle)
             if status != SUCCESS
@@ -474,7 +474,7 @@ mutable struct BoxedSet <: ConvexSet
     function BoxedSet(space::VariableSpace,
                       lower, lower_type::Cint, lower_addr,
                       upper, upper_type::Cint, upper_addr)
-        ptr = ccall((:opk_new_boxset, opklib), Ptr{Cvoid},
+        ptr = ccall((:opk_new_boxset, libopk), Ptr{Cvoid},
                     (Ptr{Cvoid}, Cint, Ptr{Cvoid}, Cint, Ptr{Cvoid}),
                     space.handle,
                     lower_type, lower_addr,
@@ -505,7 +505,7 @@ end
 #            end
 #            function $f!(dst::Variable, x::Variable, set::ConvexSet,
 #                         d::Variable, orient::integer)
-#                status = ccall(($(string(cf)), opklib), Cint,
+#                status = ccall(($(string(cf)), libopk), Cint,
 #                               (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid},
 #                                Ptr{Cvoid}, Cint),
 #                               dst.handle, x.handle, set.handle,
@@ -521,7 +521,7 @@ end
 #    smin1 = Ref{Cdouble}(0)
 #    smin2 = Ref{Cdouble}(0)
 #    smax  = Ref{Cdouble}(0)
-#    status = ccall((:opk_get_step_limits, opklib), Cint,
+#    status = ccall((:opk_get_step_limits, libopk), Cint,
 #                   (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
 #                    Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cint),
 #                   smin1, smin2, smax, x.handle, set.handle, d.handle, orient)
@@ -534,7 +534,7 @@ for f in (:can_project_direction,
           :can_get_step_limits)
     @eval begin
         function $f(set::ConvexSet)
-            ccall(($("opk_"*string(f)), opklib), Cint, (Ptr{Cvoid},),
+            ccall(($("opk_"*string(f)), libopk), Cint, (Ptr{Cvoid},),
                   set.handle) != 0
         end
     end
@@ -550,7 +550,7 @@ mutable struct ArmijoLineSearch <: LineSearch
     ftol::Cdouble
     function ArmijoLineSearch(;ftol::Real=1e-4)
         @assert 0.0 <= ftol < 1.0
-        ptr = ccall((:opk_lnsrch_new_backtrack, opklib), Ptr{Cvoid},
+        ptr = ccall((:opk_lnsrch_new_backtrack, libopk), Ptr{Cvoid},
                     (Cdouble,), ftol)
         systemerror("failed to create linesearch", ptr == C_NULL)
         return finalizer(obj -> __drop_object__(obj.handle),
@@ -567,7 +567,7 @@ mutable struct MoreThuenteLineSearch <: LineSearch
                                    xtol::Real=eps(Cdouble))
         @assert 0.0 <= ftol < gtol < 1.0
         @assert 0.0 <= xtol < 1.0
-        ptr = ccall((:opk_lnsrch_new_csrch, opklib), Ptr{Cvoid},
+        ptr = ccall((:opk_lnsrch_new_csrch, libopk), Ptr{Cvoid},
                 (Cdouble, Cdouble, Cdouble), ftol, gtol, xtol)
         systemerror("failed to create linesearch", ptr == C_NULL)
         return finalizer(obj -> __drop_object__(obj.handle),
@@ -586,7 +586,7 @@ mutable struct NonmonotoneLineSearch <: LineSearch
         @assert mem >= 1
         @assert 0.0 <= ftol < 1.0
         @assert 0.0 < amin < amax < 1.0
-        ptr = ccall((:opk_lnsrch_new_nonmonotone, opklib), Ptr{Cvoid},
+        ptr = ccall((:opk_lnsrch_new_nonmonotone, libopk), Ptr{Cvoid},
                 (Cptrdiff_t, Cdouble, Cdouble, Cdouble), mem, ftol, amin, amax)
         systemerror("failed to create nonmonotone linesearch", ptr == C_NULL)
         return finalizer(obj -> __drop_object__(obj.handle),
@@ -596,14 +596,14 @@ end
 
 function start!(ls::LineSearch, f::Real, df::Real,
                 stp::Real, stpmin::Real, stpmax::Real)
-    ccall((:opk_lnsrch_start, opklib), Cint,
+    ccall((:opk_lnsrch_start, libopk), Cint,
           (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
           ls, f, df, stp, stpmin, stpmax)
 end
 
 function iterate!(ls::LineSearch, stp::Real, f::Real, df::Real)
     _stp = Cdouble[stp]
-    task = ccall((:opk_lnsrch_iterate, opklib), Cint,
+    task = ccall((:opk_lnsrch_iterate, libopk), Cint,
                  (Ptr{Cvoid}, Ptr{Cdouble}, Cdouble, Cdouble),
                  ls, _stp, f, df)
     return (task, _stp[1])
@@ -614,7 +614,7 @@ for (jf, ct, cf) in ((:get_step,   Cdouble, :opk_lnsrch_get_step),
                      (:get_status, Cint,    :opk_lnsrch_get_status))
 
     @eval begin
-        $jf(ls::LineSearch) = ccall(($(string(cf)), opklib), $ct, (Ptr{Cvoid}, ), ls)
+        $jf(ls::LineSearch) = ccall(($(string(cf)), libopk), $ct, (Ptr{Cvoid}, ), ls)
     end
 end
 
@@ -624,7 +624,7 @@ for (jf, cf) in ((:has_errors,   :opk_lnsrch_has_errors),
                  (:finished,     :opk_lnsrch_finished),
                  (:use_deriv,    :opk_lnsrch_use_deriv))
     @eval begin
-        $jf(ls::LineSearch) = (ccall(($(string(cf)), opklib), Cint,
+        $jf(ls::LineSearch) = (ccall(($(string(cf)), libopk), Cint,
                                      (Ptr{Cvoid},), ls) != 0)
     end
 end
@@ -756,10 +756,10 @@ for (T, f1, f2) in ((VMLMBoptions,
                      :opk_check_nlcg_options))
     @eval begin
         function initialize!(opts::$T)
-            ccall(($(string(f1)), opklib), Nothing, (Ptr{$T},), Ref(opts))
+            ccall(($(string(f1)), libopk), Nothing, (Ptr{$T},), Ref(opts))
         end
         function check(opts::$T)
-            status = ccall(($(string(f2)), opklib), Cint, (Ptr{$T},), Ref(opts))
+            status = ccall(($(string(f2)), libopk), Cint, (Ptr{$T},), Ref(opts))
             status == SUCCESS || throw(ArgumentError("bad option(s)"))
         end
     end
@@ -788,7 +788,7 @@ mutable struct VMLMB <: LimitedMemoryOptimizer
         mem ≥ 1 || error("illegal number of memorized steps")
         mem = min(mem, length(space))
         box_handle =
-        ptr = ccall((:opk_new_vmlmb_optimizer, opklib), Ptr{Cvoid},
+        ptr = ccall((:opk_new_vmlmb_optimizer, libopk), Ptr{Cvoid},
                     (Ptr{VMLMBoptions}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}),
                     Ref(options), space.handle, lnsrch.handle,
                     (box == nothing ? C_NULL : box.handle))
@@ -812,7 +812,7 @@ mutable struct NLCG <: LimitedMemoryOptimizer
     function NLCG(options::NLCGoptions,
                   space::VariableSpace,
                   lnsrch::LineSearch)
-        ptr = ccall((:opk_new_nlcg_optimizer, opklib), Ptr{Cvoid},
+        ptr = ccall((:opk_new_nlcg_optimizer, libopk), Ptr{Cvoid},
                     (Ptr{NLCGoptions}, Ptr{Cvoid}, Ptr{Cvoid}),
                     Ref(options), space.handle, lnsrch.handle)
         systemerror("failed to create optimizer", ptr == C_NULL)
@@ -825,57 +825,57 @@ for (T, sfx) in ((LimitedMemoryOptimizerDriver, ""),
                  (NLCG, "_nlcg"), (VMLMB, "_vmlmb"))
     @eval begin
 
-        start!(opt::$T, x::Variable) = ccall(($("opk_start"*sfx), opklib),
+        start!(opt::$T, x::Variable) = ccall(($("opk_start"*sfx), libopk),
                                              Cint, (Ptr{Cvoid}, Ptr{Cvoid}),
                                              opt.handle, x.handle)
 
         function iterate!(opt::$T, x::Variable, f::Real, g::Variable)
-            ccall(($("opk_iterate"*sfx), opklib), Cint,
+            ccall(($("opk_iterate"*sfx), libopk), Cint,
                   (Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}),
                   opt.handle, x.handle, f, g.handle)
         end
 
-        get_task(opt::$T) = ccall(($(string("opk_get"*sfx*"_task")), opklib),
+        get_task(opt::$T) = ccall(($(string("opk_get"*sfx*"_task")), libopk),
                                     Cint, (Ptr{Cvoid},), opt.handle)
 
         get_status(opt::$T) = ccall(($(string("opk_get"*sfx*"_status")),
-                                     opklib), Cint, (Ptr{Cvoid},), opt.handle)
+                                     libopk), Cint, (Ptr{Cvoid},), opt.handle)
 
         evaluations(opt::$T) = ccall(($(string("opk_get"*sfx*"_evaluations")),
-                                      opklib), Cptrdiff_t, (Ptr{Cvoid},),
+                                      libopk), Cptrdiff_t, (Ptr{Cvoid},),
                                      opt.handle)
 
         iterations(opt::$T) = ccall(($(string("opk_get"*sfx*"_iterations")),
-                                     opklib), Cptrdiff_t, (Ptr{Cvoid},),
+                                     libopk), Cptrdiff_t, (Ptr{Cvoid},),
                                     opt.handle)
 
         restarts(opt::$T) = ccall(($(string("opk_get"*sfx*"_restarts")),
-                                   opklib), Cptrdiff_t, (Ptr{Cvoid},),
+                                   libopk), Cptrdiff_t, (Ptr{Cvoid},),
                                   opt.handle)
 
-        get_step(opt::$T) = ccall(($(string("opk_get"*sfx*"_step")), opklib),
+        get_step(opt::$T) = ccall(($(string("opk_get"*sfx*"_step")), libopk),
                                    Cdouble, (Ptr{Cvoid},), opt.handle)
 
-        get_gnorm(opt::$T) = ccall(($(string("opk_get"*sfx*"_gnorm")), opklib),
+        get_gnorm(opt::$T) = ccall(($(string("opk_get"*sfx*"_gnorm")), libopk),
                                    Cdouble, (Ptr{Cvoid},), opt.handle)
 
         function get_name(opt::$T)
-            nbytes = ccall(($(string("opk_get"*sfx*"_name")), opklib), Csize_t,
+            nbytes = ccall(($(string("opk_get"*sfx*"_name")), libopk), Csize_t,
                            (Ptr{UInt8}, Csize_t, Ptr{Cvoid}),
                            C_NULL, 0, opt.handle)
             buf = Array{UInt8}(undef, nbytes)
-            ccall(($(string("opk_get"*sfx*"_name")), opklib), Csize_t,
+            ccall(($(string("opk_get"*sfx*"_name")), libopk), Csize_t,
                   (Ptr{UInt8}, Csize_t, Ptr{Cvoid}),
                   buf, nbytes, opt.handle)
             unsafe_string(buf)
         end
 
         function get_description(opt::$T)
-            nbytes = ccall(($(string("opk_get"*sfx*"_description")), opklib),
+            nbytes = ccall(($(string("opk_get"*sfx*"_description")), libopk),
                            Csize_t, (Ptr{UInt8}, Csize_t, Ptr{Cvoid}),
                            C_NULL, 0, opt.handle)
             buf = Array{UInt8}(undef, nbytes)
-            ccall(($(string("opk_get"*sfx*"_description")), opklib), Csize_t,
+            ccall(($(string("opk_get"*sfx*"_description")), libopk), Csize_t,
                   (Ptr{UInt8}, Csize_t, Ptr{Cvoid}), buf, nbytes, opt.handle)
             unsafe_string(buf)
         end
