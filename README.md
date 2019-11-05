@@ -2,7 +2,7 @@
 
 | **Documentation**               | **License**                     | **Build Status**                                                | **Code Coverage**                                                   |
 |:--------------------------------|:--------------------------------|:----------------------------------------------------------------|:--------------------------------------------------------------------|
-| [![][doc-dev-img]][doc-dev-url] | [![][license-img]][license-url] | [![][travis-img]][travis-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
+| [![][doc-dev-img]][doc-dev-url] | [![][license-img]][license-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
 
 
 OptimPack.jl is the Julia interface to [OptimPack][lib-optimpack-url], a C
@@ -16,7 +16,6 @@ library for solving large scale optimization problems.
 From a Julia session, press `]` to enter the Pkg REPL and type the following commands:
 ```julia
 (...) pkg> add https://github.com/emmt/OptimPack.jl
-(...) pkg> build OptimPack
 ```
 to install and build the package.  This just has to be done once.
 
@@ -32,10 +31,10 @@ libraries for your architecture so that you have nothing to compile.  If your
 system is not part of the supported architectures or if you want to use
 OptimPack libraries compiled and installed by yourself (see intructions at
 [official OptimPack repository][lib-optimpack-url]) then you have to define 4
-environment variables **before** calling `build OptimPack`. Each of these
+environment variables **before** building  `OptimPack.jl` package.  Each of these
 environment variables specifies the full path to one of the OptimPack dynamic
 libraries. These environment variables can be set before starting Julia or at
-Julia REPL by:
+Julia REPL, for instance by:
 
 ```julia
 ENV["OPTIMPACK_OPK_LIB"] = "/usr/local/lib/libopk.so"
@@ -49,6 +48,12 @@ REPL and type the following commands:
 
 ```julia
 (...) pkg> add https://github.com/emmt/OptimPack.jl
+```
+
+If you define the environment variables after adding `OptimPack.jl` package,
+just re-build the package:
+
+```julia
 (...) pkg> build OptimPack
 ```
 

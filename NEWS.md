@@ -1,8 +1,7 @@
 
-
 - By default, installation with precompiled libraries.
 - Compatible with OptimPack 3.1 whose functionalities have been split in 3
-  libraries. are suite
+  libraries.
 
 # Version 1.0.0
 
