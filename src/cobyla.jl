@@ -17,8 +17,7 @@ export
     cobyla,
     cobyla!
 
-using Compat
-using Compat.Printf
+using Printf
 
 import
     ..AbstractContext,

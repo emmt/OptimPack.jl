@@ -1,6 +1,6 @@
 module CobylaTests
 
-using Compat.Printf
+using Printf
 using OptimPack.Powell
 
 function runtests(;revcom::Bool = false, scale::Real = 1.0)

@@ -12,22 +12,21 @@
 #
 # ----------------------------------------------------------------------------
 
-VERSION < v"0.7.0-beta2.199" && __precompile__(true)
-
 module OptimPack
 
-using Compat
-using Compat: String, @debug, @error, @info, @warn
-import Compat: LinearAlgebra
-using Compat.Printf
+export
+    fmin,
+    fmin_global,
+    fzero,
+    nlcg,
+    spg2,
+    vmlmb
 
-export nlcg, vmlmb, spg2
-
-export fzero, fmin, fmin_global
+using LinearAlgebra, Printf
 
 # Functions must be imported to be extended with new methods.
-import Base: ENV, size, length, eltype, ndims, copy
-import .LinearAlgebra: dot
+import Base: ENV, size, length, eltype, ndims, copy, copyto!, fill!
+import LinearAlgebra: dot
 
 isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||
     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
@@ -139,7 +138,7 @@ member which stores the address of the OptimPack object.  To avoid conflicts
 with Julia `Vector` type, an OptimPack vector (*i.e.* `opk_vector_t`)
 corresponds to the type `Variable` in Julia.
 """
-@compat abstract type Object end
+abstract type Object end
 
 """
 Reference Counting
@@ -173,7 +172,6 @@ end
 #------------------------------------------------------------------------------
 # VARIABLE SPACE
 
-@compat abstract type VariableSpace <: Object end
 """
 
 Variable Space
@@ -183,6 +181,8 @@ Abstract type `VariableSpace` corresponds to a *vector space* (type
 `opk_vspace_t`) in OptimPack.
 
 """
+abstract type VariableSpace <: Object end
+
 mutable struct DenseVariableSpace{T,N} <: VariableSpace
     handle::Ptr{Cvoid}
     eltype::Type{T}
@@ -227,8 +227,6 @@ end
 #------------------------------------------------------------------------------
 # VARIABLES
 
-@compat abstract type Variable <: Object end
-
 """
 
 Variables
@@ -238,6 +236,8 @@ Abstract type `Variable` correspond to *vectors* (type `opk_vector_t`) in
 OptimPack.
 
 """
+abstract type Variable <: Object end
+
 mutable struct DenseVariable{T<:Floats,N} <: Variable
     # Note: There are no needs to register a reference for the owner of a
     # vector (it already owns one internally).
@@ -403,7 +403,7 @@ end
 #------------------------------------------------------------------------------
 # OPERATORS
 
-@compat abstract type Operator <: Object end
+abstract type Operator <: Object end
 
 for (jf, cf) in ((:apply_direct!, :opk_apply_direct),
                  (:apply_adoint!, :opk_apply_adjoint),
@@ -426,7 +426,7 @@ end
 #------------------------------------------------------------------------------
 # CONVEX SETS
 
-@compat abstract type ConvexSet <: Object end
+abstract type ConvexSet <: Object end
 
 function checkbound(name::AbstractString, b::Variable, space::VariableSpace)
     if owner(b) != space
@@ -543,7 +543,7 @@ end
 #------------------------------------------------------------------------------
 # LINE SEARCH METHODS
 
-@compat abstract type LineSearch <: Object end
+abstract type LineSearch <: Object end
 
 mutable struct ArmijoLineSearch <: LineSearch
     handle::Ptr{Cvoid}
@@ -637,11 +637,11 @@ get_xtol(ls::MoreThuenteLineSearch) = ls.xtol
 #------------------------------------------------------------------------------
 # NON LINEAR LIMITED-MEMORY OPTIMIZERS
 
-@compat abstract type LimitedMemoryOptimizer <: Object end
+abstract type LimitedMemoryOptimizer <: Object end
 
-@compat abstract type LimitedMemoryOptimizerOptions end
+abstract type LimitedMemoryOptimizerOptions end
 
-@compat abstract type LimitedMemoryOptimizerDriver <: LimitedMemoryOptimizer end
+abstract type LimitedMemoryOptimizerDriver <: LimitedMemoryOptimizer end
 
 mutable struct VMLMBoptions <: LimitedMemoryOptimizerOptions
     # Relative size for a small step.

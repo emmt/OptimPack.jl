@@ -17,8 +17,7 @@ export
     newuoa,
     newuoa!
 
-using Compat
-using Compat.Printf
+using Printf
 
 import
     ..AbstractContext,

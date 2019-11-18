@@ -1,6 +1,6 @@
 module BobyqaTests
 
-using Compat.Printf
+using Printf
 using OptimPack.Powell
 
 function runtests()
