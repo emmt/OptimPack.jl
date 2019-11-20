@@ -24,8 +24,27 @@ export
 
 using LinearAlgebra, Printf
 
-# Functions must be imported to be extended with new methods.
-import Base: ENV, size, length, eltype, ndims, copy, copyto!, fill!
+using Base:
+    @propagate_inbounds,
+    OneTo,
+    axes1,
+    elsize,
+    tail,
+    throw_boundserror
+
+import Base:
+    ENV,
+    checkbounds,
+    copy,
+    copyto!,
+    eltype,
+    fill!,
+    getindex,
+    length,
+    ndims,
+    setindex!,
+    size
+
 import LinearAlgebra: dot
 
 isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||

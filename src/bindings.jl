@@ -12,10 +12,6 @@
 #
 # ----------------------------------------------------------------------------
 
-# Functions must be imported to be extended with new methods.
-import Base: ENV, size, length, eltype, ndims, copy, copyto!, fill!
-import LinearAlgebra: dot
-
 """
 `Floats` is any floating point type supported by the library.
 """
@@ -176,20 +172,20 @@ abstract type VariableSpace <: Object end
 
 mutable struct DenseVariableSpace{T<:Floats,N} <: VariableSpace
     handle::Ptr{DenseVariableSpace}
-    size::NTuple{N,Int}
+    dims::NTuple{N,Int}
 
     DenseVariableSpace{T,N}(dims::NTuple{N,Int}) where {T<:Floats,N} =
         finalizer(_drop, new{T,N}(_new_simple_vector_space(T, dims), dims))
 end
 
 # Extend basic methods for variable spaces.
-eltype(vsp::DenseVariableSpace{T}) where {T} = T
-ndims(vsp::DenseVariableSpace{T,N}) where {T,N} = N
-length(vsp::DenseVariableSpace) = prod(size(vsp))
-size(vsp::DenseVariableSpace) = vsp.size
-size(vsp::DenseVariableSpace{T,N}, d::Integer) where {T,N} =
+eltype(::DenseVariableSpace{T}) where {T} = T
+ndims(::DenseVariableSpace{T,N}) where {T,N} = N
+length(obj::DenseVariableSpace) = prod(size(obj))
+size(obj::DenseVariableSpace) = obj.dims
+size(obj::DenseVariableSpace{T,N}, d::Integer) where {T,N} =
     (d < 1 ? error("out of bounds dimension") :
-     d ≤ N ? (@inbounds vsp.size[d]) : 1)
+     d ≤ N ? (@inbounds obj.dims[d]) : 1)
 
 DenseVariableSpace(::Type{T}, dims::Integer...) where {T} =
     DenseVariableSpace(T, dims)
@@ -227,25 +223,69 @@ Variables
 =========
 
 Abstract type `Variable` correspond to *vectors* (type `opk_vector_t`) in
-OptimPack.
+OptimPack.  It is simpler to make then inherit from `AbstractArray` rather than
+form `Object`.
 
 """
-abstract type Variable <: Object end
+abstract type Variable{T,N} <: AbstractArray{T,N} end
 
-mutable struct DenseVariable{T<:Floats,N,A<:Union{Array{T},Nothing}} <: Variable
-    # Note: There are no needs to register a reference for the owner of a
-    # vector (it already owns one internally).
+mutable struct DenseVariable{T<:Floats,N,A<:DenseArray{T},B} <: Variable{T,N}
     handle::Ptr{DenseVariable}
+    vals::A
+    dims::NTuple{N,Int}
     owner::DenseVariableSpace{T,N}
-    values::A
+
+    function DenseVariable{T,N,A,B}(vsp::DenseVariableSpace{T},
+                                    ptr::Ptr{DenseVariable},
+                                    arr::A) where {T,N,M,A<:DenseArray{T,M},B}
+        @assert isa(N, Int)
+        @assert isa(B, Bool)
+        @assert ptr != C_NULL
+        @assert M in (1, N) "invalid dimensionality of backing storage array"
+        return finalizer(_drop, new{T,N,A,B}(ptr, arr, size(vsp), vsp))
+    end
 end
 
-eltype(v::DenseVariable{T,N}) where {T,N} = T
-ndims(v::DenseVariable{T,N}) where {T,N} = N
-length(v::DenseVariable) = length(v.owner)
-size(v::DenseVariable) = size(v.owner)
-size(v::DenseVariable, d::Integer) = size(v.owner, d)
-owner(v::DenseVector) = v.owner
+owner(obj::DenseVector) = getfield(obj, :owner)
+iswrapped(::DenseVariable{T,N,A,B}) where {T,N,A,B} = B
+
+# Extend `Base.values` to yield the backing storage array.
+Base.values(obj::DenseVariable) = getfield(obj, :vals)
+
+
+# Extend basic methods to make `DenseVariable` as efficient as Julia's `Array`.
+# See file `test/benchmarks.jl`.
+Base.length(obj::DenseVariable) = length(values(obj))
+Base.size(obj::DenseVariable) = getfield(obj, :dims)
+Base.size(obj::DenseVariable{T,N}, d::Integer) where {T,N} =
+    (d < 1 ? error("out of bounds dimension") :
+     d ≤ N ? (@inbounds obj.dims[d]) : 1)
+Base.axes(obj::DenseVariable) = map(OneTo, size(obj))
+Base.axes(obj::DenseVariable, d) = OneTo(size(obj, d))
+Base.axes1(obj::DenseVariable) = OneTo(size(obj, 1))
+Base.lastindex(obj::DenseVariable) = length(obj)
+Base.lastindex(obj::DenseVariable, d::Integer) = size(obj, d)
+Base.IndexStyle(::Type{<:DenseVariable}) = IndexLinear()
+Base.elsize(::Type{<:DenseVariable{T,N}}) where {T,N} = elsize(Array{T,N})
+Base.sizeof(obj::DenseVariable) = sizeof(values(obj))
+Base.pairs(S::IndexLinear, obj::DenseVariable) = pairs(S, values(obj))
+
+@inline Base.iterate(obj::DenseVariable, i=1) =
+    ((i % UInt) - 1 < length(obj) ?
+     (@inbounds  getindex(values(obj), i), i + 1) : nothing)
+
+@inline @propagate_inbounds function Base.getindex(obj::DenseVariable,
+                                                   i::Int)
+    @boundscheck checkbounds(obj, i)
+    @inbounds r = getindex(values(obj), i)
+    return r
+end
+
+@inline @propagate_inbounds function Base.setindex!(obj::DenseVariable, x, i::Int)
+    @boundscheck checkbounds(obj, i)
+    @inbounds r = setindex!(values(obj), x, i)
+    return r
+end
 
 """
 
@@ -260,15 +300,13 @@ library.  Otherwise, the variable is wrapped over an embedded Julia array.
 """
 create(vsp::DenseVariableSpace) = create(vsp, Val(false))
 
-create(vsp::DenseVariableSpace{T,N}, ::Val{false}) where {T<:Floats,N} =
-    wrap(vsp, Array{T,N}(undef, size(vspc)))
+create(vsp::DenseVariableSpace{T,N}, ::Val{false}) where {T,N} =
+    wrap(vsp, Vector{T}(undef, length(vsp)))
 
-function create(vsp::DenseVariableSpace{T,N},
-                ::Val{true}) where {T<:Floats,N}
-    ptr = ccall((:opk_vcreate, libopk), Ptr{Variable},
-                (Ptr{VariableSpace},), vsp)
-    systemerror("failed to create vector", ptr == C_NULL)
-    return finalizer(_drop, DenseVariable{T,N,Nothing}(ptr, vsp, nothing))
+create(vsp::DenseVariableSpace{T,N}, ::Val{true}) where {T,N} = begin
+    ptr = _create(vsp)
+    arr = unsafe_wrap(Array, _get_data(T, ptr), length(vsp); own=false)
+    return DenseVariable{T,N,Vector{T},false}(vsp, ptr, arr)
 end
 
 """
@@ -277,42 +315,77 @@ end
 `vsp` and returns the resulting variable `var`.  Array `arr` must have the
 correct dimensions and element type.
 
-""" wrap
+"""
+function wrap(vsp::DenseVariableSpace{T,N},
+              arr::A) where {T,N,M,A<:DenseArray{T,M}}
+    checkstorage(vsp, arr)
+    return DenseVariable{T,N,A,true}(vsp, _wrap(vsp, arr), arr)
+end
 
 """
 
 `wrap!(var, arr)` rewraps the Julia array `arr` into the variable `var` and
 returns `var`.  Array `arr` must have the correct dimensions and element type.
 
-""" wrap!
+To avoid wasting memory, it is not possible to re-wrap a variable which does
+not already use a Julia array for storing its values.  See [`iswrapped`](@ref)
+to check for that.
 
+"""
+function wrap!(var::DenseVariable{T,N,A,true},
+               arr::A) where {T,N,M,A<:DenseArray{T,M}}
+    checkstorage(vsp, arr)
+    _rewrap!(var::DenseVariable{T,N,A}, arr)
+    var.values = arr
+    return var
+end
+
+function checkstorage(vsp::DenseVariableSpace{T,N},
+                      arr::A) where {T,N,M,A<:DenseArray{T,M}}
+    if M == N
+        assertflatarray(arr, size(vsp))
+    elseif M == 1
+        assertflatarray(arr, length(vsp))
+    else
+        error("invalid dimensionality of backing storage array")
+    end
+end
+
+# The following private methods do no checking of their arguments.
 for (T, ctype) in ((Cfloat, "float"),
                    (Cdouble, "double"))
     @eval begin
-        function wrap(vsp::DenseVariableSpace{$T,N},
-                      arr::A) where {N,A<:DenseArray{$T,N}}
-            assertflatarray(arr)
-            size(arr) == size(vsp) || error("incompatible array dimensions")
+
+        _get_data(::Type{$T}, arg) =
+            ccall(($("opk_get_simple_"*ctype*"_vector_data"), libopk), Ptr{$T},
+                  (Ptr{DenseVariable},), arg)
+
+        function _wrap(vsp::DenseVariableSpace{$T,N},
+                       arr::A) where {N,A<:DenseArray{$T}}
             ptr = ccall(($("opk_wrap_simple_"*ctype*"_vector"), libopk),
-                        Ptr{Variable},
-                        (Ptr{VariableSpace}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
-                        vsp, arr, C_NULL, C_NULL)
-            systemerror("failed to wrap vector", ptr == C_NULL)
-            return finalizer(_drop, DenseVariable{$T,N,A}(ptr, vsp, arr))
+                        Ptr{DenseVariable},
+                        (Ptr{DenseVariableSpace}, Ptr{$T}, Ptr{Cvoid},
+                         Ptr{Cvoid}), vsp, arr, C_NULL, C_NULL)
+            systemerror("failed to wrap array", ptr == C_NULL)
+            return ptr
         end
 
-        function wrap!(var::DenseVariable{$T,N,A}, arr::A) where {N,A}
-            assertflatarray(arr)
-            size(arr) == size(vsp) || error("incompatible array dimensions")
+        function _rewrap!(var::DenseVariable{$T,N,A}, arr::A) where {N,A}
             status = ccall(($("opk_rewrap_simple_"*ctype*"_vector"), libopk),
                            Cint,
-                           (Ptr{Variable}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
+                           (Ptr{DenseVariable}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
                            var, arr, C_NULL, C_NULL)
-            systemerror("failed to re-wrap vector", status != SUCCESS)
-            var.values = arr
-            return var
+            systemerror("failed to re-wrap array", status != SUCCESS)
         end
+
     end
+end
+
+_create(vsp::DenseVariableSpace) = begin
+    ptr = ccall((:opk_vcreate, libopk), Ptr{Variable},
+                (Ptr{VariableSpace},), vsp)
+    systemerror("failed to create vector", ptr == C_NULL)
+    return ptr
 end
 
 """
@@ -327,8 +400,7 @@ at index 1 and elements are contiguous and stored in comum-major order.
 This is to make sure that the array can be accessed like a simple vector.
 
 """
-
-function assertflatarray(A::DenseArray{T,N}) where {T,N}
+assertflatarray(A::DenseArray{T,N}) where {T,N} = begin
     inds = axes(A)
     stds = strides(A)
     stride = 1
@@ -339,6 +411,25 @@ function assertflatarray(A::DenseArray{T,N}) where {T,N}
         dim > 0 || error("invalid dimenson(s)")
         stride *= dim
     end
+end
+
+assertflatarray(A::DenseArray{T,N}, dims::NTuple{N,Int}) where {T,N} = begin
+    inds = axes(A)
+    stds = strides(A)
+    stride = 1
+    @inbounds for d in 1:N
+        stds[d] == stride || error("unsupported element ordering")
+        first(inds[d]) == 1 || error("unsupported indexing")
+        dim = last(inds[d])
+        dim == dims[d] || error("incompatible array dimension(s)")
+        dim > 0 || error("invalid dimenson(s)")
+        stride *= dim
+    end
+end
+
+assertflatarray(A::DenseVector, len::Int) = begin
+    assertflatarray(A)
+    length(A) == len || error("incompatible vector length")
 end
 
 #------------------------------------------------------------------------------
@@ -1201,6 +1292,10 @@ for T in (Object, VariableSpace, Variable, Operator, ConvexSet, LineSearch,
         Ptr{$T}(_handle(obj))
 end
 
+# Instance of `Variable` are also *objects*.
+Base.unsafe_convert(::Type{Ptr{Object}}, obj::Variable) =
+        Ptr{Object}(_handle(obj))
+
 # Extend `unsafe_convert` for concrete types.
 for T in (DenseVariableSpace, DenseVariable, BoxedSet,
           ArmijoLineSearch, NonmonotoneLineSearch, MoreThuenteLineSearch,
@@ -1209,4 +1304,4 @@ for T in (DenseVariableSpace, DenseVariable, BoxedSet,
 end
 
 # General method to retrieve the pointer to and OptimPack object.
-_handle(obj::Object) = Base.getfield(obj, :handle)
+_handle(obj::Union{Object,Variable}) = Base.getfield(obj, :handle)
