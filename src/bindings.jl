@@ -174,47 +174,49 @@ Abstract type `VariableSpace` corresponds to a *vector space* (type
 """
 abstract type VariableSpace <: Object end
 
-mutable struct DenseVariableSpace{T,N} <: VariableSpace
+mutable struct DenseVariableSpace{T<:Floats,N} <: VariableSpace
     handle::Ptr{DenseVariableSpace}
-    eltype::Type{T}
     size::NTuple{N,Int}
-    length::Int
+
+    DenseVariableSpace{T,N}(dims::NTuple{N,Int}) where {T<:Floats,N} =
+        finalizer(_drop, new{T,N}(_new_simple_vector_space(T, dims), dims))
 end
 
-# Extend basic functions for arrays.
-length(vsp::DenseVariableSpace) = vsp.length
+# Extend basic methods for variable spaces.
 eltype(vsp::DenseVariableSpace{T}) where {T} = T
+ndims(vsp::DenseVariableSpace{T,N}) where {T,N} = N
+length(vsp::DenseVariableSpace) = prod(size(vsp))
 size(vsp::DenseVariableSpace) = vsp.size
-size(vsp::DenseVariableSpace, n::Integer) = vsp.size[n]
-ndims(vsp::DenseVariableSpace) = length(vsp.size)
+size(vsp::DenseVariableSpace{T,N}, d::Integer) where {T,N} =
+    (d < 1 ? error("out of bounds dimension") :
+     d ≤ N ? (@inbounds vsp.size[d]) : 1)
 
-DenseVariableSpace(T::Union{Type{Cfloat},Type{Cdouble}},
-                   dims::Int...) = DenseVariableSpace(T, dims)
+DenseVariableSpace(::Type{T}, dims::Integer...) where {T} =
+    DenseVariableSpace(T, dims)
 
-function checkdims(dims::NTuple{N,Int}) where {N}
-    number::Int = 1
-    for dim in dims
-        if dim < 1
-            error("invalid dimension")
+DenseVariableSpace(::Type{T}, dims::Tuple{Vararg{Integer}}) where {T} =
+    DenseVariableSpace(T, map(Int, dims))
+
+DenseVariableSpace(::Type{T}, dims::NTuple{N,Int}) where {T,N} =
+    DenseVariableSpace{T,N}(dims)
+
+for (T, func) in ((Cfloat, "opk_new_simple_float_vector_space"),
+                  (Cdouble, "opk_new_simple_double_vector_space"))
+    @eval function _new_simple_vector_space(::Type{$T},
+                                            dims::NTuple{N,Int}) where {N}
+
+        len = 1
+        for dim in dims
+            dim ≥ 1 || error("invalid dimension")
+            len *= dim
         end
-        number *= dim
+        ptr = ccall(($func, libopk), Ptr{DenseVariableSpace},
+                    (Cptrdiff_t,), len)
+        systemerror("failed to create vector space", ptr == C_NULL)
+        return ptr
     end
-    return number
 end
 
-for (T, f) in ((Cfloat, :opk_new_simple_float_vector_space),
-               (Cdouble, :opk_new_simple_double_vector_space))
-    @eval begin
-        function DenseVariableSpace(::Type{$T}, dims::NTuple{N,Int}) where {N}
-            length::Int = checkdims(dims)
-            ptr = ccall(($(string(f)), libopk), Ptr{DenseVariableSpace},
-                        (Cptrdiff_t,), length)
-            systemerror("failed to create vector space", ptr == C_NULL)
-            return finalizer(_drop,
-                             DenseVariableSpace{$T,N}(ptr, $T, dims, length))
-        end
-    end
-end
 
 #------------------------------------------------------------------------------
 # VARIABLES
@@ -230,35 +232,49 @@ OptimPack.
 """
 abstract type Variable <: Object end
 
-mutable struct DenseVariable{T<:Floats,N} <: Variable
+mutable struct DenseVariable{T<:Floats,N,A<:Union{Array{T},Nothing}} <: Variable
     # Note: There are no needs to register a reference for the owner of a
     # vector (it already owns one internally).
     handle::Ptr{DenseVariable}
     owner::DenseVariableSpace{T,N}
-    array::Union{Array,Nothing}
+    values::A
 end
 
+eltype(v::DenseVariable{T,N}) where {T,N} = T
+ndims(v::DenseVariable{T,N}) where {T,N} = N
 length(v::DenseVariable) = length(v.owner)
-eltype(v::DenseVariable) = eltype(v.owner)
 size(v::DenseVariable) = size(v.owner)
-size(v::DenseVariable, n::Integer) = size(v.owner, n)
-ndims(v::DenseVariable) = ndims(v.owner)
+size(v::DenseVariable, d::Integer) = size(v.owner, d)
 owner(v::DenseVector) = v.owner
 
 """
-`var = create(spc)` creates a new variable of the variable space `spc`.
+
+```julia
+create(vsp, monolithic=Val(false)) -> var
+```
+
+creates a new variable of the variable space `vsp`.  If `monolithic` is
+`Val(true)`, the variable is allocated in one piece of memory by OptimPack C
+library.  Otherwise, the variable is wrapped over an embedded Julia array.
+
 """
-function create(spc::DenseVariableSpace{T,N}) where {T<:Floats,N<:Integer}
+create(vsp::DenseVariableSpace) = create(vsp, Val(false))
+
+create(vsp::DenseVariableSpace{T,N}, ::Val{false}) where {T<:Floats,N} =
+    wrap(vsp, Array{T,N}(undef, size(vspc)))
+
+function create(vsp::DenseVariableSpace{T,N},
+                ::Val{true}) where {T<:Floats,N}
     ptr = ccall((:opk_vcreate, libopk), Ptr{Variable},
-                (Ptr{VariableSpace},), spc)
+                (Ptr{VariableSpace},), vsp)
     systemerror("failed to create vector", ptr == C_NULL)
-    return finalizer(_drop, DenseVariable{T,N}(ptr, spc, nothing))
+    return finalizer(_drop, DenseVariable{T,N,Nothing}(ptr, vsp, nothing))
 end
 
 """
 
-`var = wrap(spc, arr)` wraps the Julia array `arr` into a variable of the space
-`spc` and returns the resulting variable `var`.  Array `arr` must have the
+`var = wrap(vsp, arr)` wraps the Julia array `arr` into a variable of the space
+`vsp` and returns the resulting variable `var`.  Array `arr` must have the
 correct dimensions and element type.
 
 """ wrap
@@ -273,30 +289,55 @@ returns `var`.  Array `arr` must have the correct dimensions and element type.
 for (T, ctype) in ((Cfloat, "float"),
                    (Cdouble, "double"))
     @eval begin
-        function wrap(spc::DenseVariableSpace{$T,N},
-                      arr::DenseArray{$T,N}) where {N}
-            # FIXME: DenseArray is not sufficient "flat" is better
-            @assert size(arr) == size(spc)
+        function wrap(vsp::DenseVariableSpace{$T,N},
+                      arr::A) where {N,A<:DenseArray{$T,N}}
+            assertflatarray(arr)
+            size(arr) == size(vsp) || error("incompatible array dimensions")
             ptr = ccall(($("opk_wrap_simple_"*ctype*"_vector"), libopk),
                         Ptr{Variable},
                         (Ptr{VariableSpace}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
-                        spc, arr, C_NULL, C_NULL)
+                        vsp, arr, C_NULL, C_NULL)
             systemerror("failed to wrap vector", ptr == C_NULL)
-            return finalizer(_drop, DenseVariable{$T,N}(ptr, spc, arr))
+            return finalizer(_drop, DenseVariable{$T,N,A}(ptr, vsp, arr))
         end
 
-        function wrap!(var::DenseVariable{$T,N},
-                       arr::DenseArray{$T,N}) where {N}
-            @assert size(arr) == size(var)
-            @assert var.array != nothing
+        function wrap!(var::DenseVariable{$T,N,A}, arr::A) where {N,A}
+            assertflatarray(arr)
+            size(arr) == size(vsp) || error("incompatible array dimensions")
             status = ccall(($("opk_rewrap_simple_"*ctype*"_vector"), libopk),
                            Cint,
                            (Ptr{Variable}, Ptr{$T}, Ptr{Cvoid}, Ptr{Cvoid}),
                            var, arr, C_NULL, C_NULL)
             systemerror("failed to re-wrap vector", status != SUCCESS)
-            var.array = arr
+            var.values = arr
             return var
         end
+    end
+end
+
+"""
+
+```julia
+assertflatarray(A)
+```
+
+ensures that `A` is a *flat array* that is an array whose first element is
+at index 1 and elements are contiguous and stored in comum-major order.
+
+This is to make sure that the array can be accessed like a simple vector.
+
+"""
+
+function assertflatarray(A::DenseArray{T,N}) where {T,N}
+    inds = axes(A)
+    stds = strides(A)
+    stride = 1
+    @inbounds for d in 1:N
+        stds[d] == stride || error("unsupported element ordering")
+        first(inds[d]) == 1 || error("unsupported indexing")
+        dim = last(inds[d])
+        dim > 0 || error("invalid dimenson(s)")
+        stride *= dim
     end
 end
 
@@ -1169,11 +1210,3 @@ end
 
 # General method to retrieve the pointer to and OptimPack object.
 _handle(obj::Object) = Base.getfield(obj, :handle)
-
-
-# Load other components.
-include("Brent.jl")
-include("powell.jl")
-include("spg2.jl")
-
-end # module
