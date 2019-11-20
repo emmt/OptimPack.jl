@@ -72,7 +72,7 @@ function vcopy!(dst::AbstractArray{T,N},
     return dst
 end
 
-T = Float32
+T = Float64
 dims = (20,30,40)
 len = prod(dims)
 
@@ -86,38 +86,46 @@ vy = vcopy!(OptimPack.create(E), y)
 vz = vcopy!(OptimPack.create(E), z)
 
 @assert vnorm2(vz) == vnorm2(z)
+@assert vnorm2(vz) ≈ OptimPack.norm2(vz)
 @assert vdot(vx,vy) == vdot(x,y)
+@assert vdot(vx,vy) ≈ OptimPack.dot(vx,vy)
 
 println("\nSlow versions (with bound checking):")
 println("  VNORM2 of $len elements:")
-print("    Julia arrays ------------>")
+print("    Julia arrays ------------->")
 @btime slowvnorm2($z)
-print("    DenseVariable arrays ---->")
+print("    DenseVariable arrays ----->")
 @btime slowvnorm2($vz)
 println("  VDOT of $len elements:")
-print("    Julia arrays ------------>")
+print("    Julia arrays ------------->")
 @btime slowvdot($x,$y)
-print("    DenseVariable arrays ---->")
+print("    DenseVariable arrays ----->")
 @btime slowvdot($vx,$vy)
-print("    mixed type arrays ------->")
+print("    mixed type arrays -------->")
 @btime slowvdot($x,$vy)
-print("    mixed type arrays ------->")
+print("    mixed type arrays -------->")
 @btime slowvdot($vx,$y)
 
-println("\nfast versions (np bound checking and SIMD):")
+println("\nFast versions (no bound checking and SIMD):")
 println("  VNORM2 of $len elements:")
-print("    Julia arrays ------------>")
+print("    Julia arrays ------------->")
 @btime vnorm2($z)
-print("    DenseVariable arrays ---->")
+print("    DenseVariable arrays ----->")
 @btime vnorm2($vz)
 println("  VDOT of $len elements:")
-print("    Julia arrays ------------>")
+print("    Julia arrays ------------->")
 @btime vdot($x,$y)
-print("    DenseVariable arrays ---->")
+print("    DenseVariable arrays ----->")
 @btime vdot($vx,$vy)
-print("    mixed type arrays ------->")
+print("    mixed type arrays -------->")
 @btime vdot($x,$vy)
-print("    mixed type arrays ------->")
+print("    mixed type arrays -------->")
 @btime vdot($vx,$y)
+
+println("\nVersions provided by the C library:")
+print("  VNORM2 of $len elements ---->")
+@btime OptimPack.norm2($vz)
+print("  VDOT of $len elements ------>")
+@btime OptimPack.dot($vx,$vy)
 
 end
