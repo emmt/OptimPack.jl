@@ -1142,17 +1142,19 @@ See `vmlmb` for more details.
 
 """
 function nlcg(fg!::Function, x0::DenseArray{T,N},
-              flags::Integer=NLCG_DEFAULT.flags;
-              lnsrch::LineSearch=default_nlcg_line_search(),
-              delta::Real=NLCG_DEFAULT.delta,
-              epsilon::Real=NLCG_DEFAULT.epsilon,
-              fmin::Union{Real,Nothing}=nothing,
-              gatol::Real=NLCG_DEFAULT.gatol,
-              grtol::Real=NLCG_DEFAULT.grtol,
-              stpmin::Real=NLCG_DEFAULT.stpmin,
-              stpmax::Real=NLCG_DEFAULT.stpmax,
-              maxeval::Integer=-1, maxiter::Integer=-1,
-              verb::Bool=false, debug::Bool=false) where {T<:Floats,N}
+              flags::Integer = NLCG_DEFAULT.flags;
+              lnsrch::LineSearch = default_nlcg_line_search(),
+              delta::Real = NLCG_DEFAULT.delta,
+              epsilon::Real = NLCG_DEFAULT.epsilon,
+              fmin::Union{Real,Nothing} = nothing,
+              gatol::Real = NLCG_DEFAULT.gatol,
+              grtol::Real = NLCG_DEFAULT.grtol,
+              stpmin::Real = NLCG_DEFAULT.stpmin,
+              stpmax::Real = NLCG_DEFAULT.stpmax,
+              maxeval::Integer = typemax(Int),
+              maxiter::Integer = typemax(Int),
+              verb::Bool = false,
+              debug::Bool = false) where {T<:Floats,N}
     # Create an optimizer and solve the problem.
     dims = size(x0)
     space = DenseVariableSpace(T, dims)
@@ -1161,8 +1163,8 @@ function nlcg(fg!::Function, x0::DenseArray{T,N},
                           stpmin=stpmin, stpmax=stpmax,
                           flags=flags, fmin=fmin)
     opt = NLCG(options, space, lnsrch)
-    solve(opt, fg!, x0, maxeval=maxeval, maxiter=maxiter,
-          verb=verb, debug=debug)
+    x = copyto!(Array{T,N}(undef, size(x0)), x0)
+    solve!(opt, fg!, x, Int(maxeval), Int(maxiter), verb, debug)
 end
 
 """
@@ -1194,21 +1196,21 @@ by `fg!` is `f(x)`.
 
 """
 function vmlmb(fg!::Function, x0::DenseArray{T,N};
-               lower=nothing, upper=nothing,
-               lnsrch::LineSearch=default_vmlmb_line_search(),
-               mem::Integer=VMLMB_DEFAULT.mem,
-               delta::Real=VMLMB_DEFAULT.delta,
-               epsilon::Real=VMLMB_DEFAULT.epsilon,
-               gatol::Real=VMLMB_DEFAULT.gatol,
-               grtol::Real=VMLMB_DEFAULT.grtol,
-               stpmin::Real=VMLMB_DEFAULT.stpmin,
-               stpmax::Real=VMLMB_DEFAULT.stpmax,
-               blmvm::Bool=(VMLMB_DEFAULT.blmvm != 0),
-               savemem::Bool=(VMLMB_DEFAULT.savemem != 0),
-               maxeval::Integer=-1,
-               maxiter::Integer=-1,
-               verb::Bool=false,
-               debug::Bool=false) where {T<:Floats,N}
+               lower = nothing, upper = nothing,
+               lnsrch::LineSearch = default_vmlmb_line_search(),
+               mem::Integer = VMLMB_DEFAULT.mem,
+               delta::Real = VMLMB_DEFAULT.delta,
+               epsilon::Real = VMLMB_DEFAULT.epsilon,
+               gatol::Real = VMLMB_DEFAULT.gatol,
+               grtol::Real = VMLMB_DEFAULT.grtol,
+               stpmin::Real = VMLMB_DEFAULT.stpmin,
+               stpmax::Real = VMLMB_DEFAULT.stpmax,
+               blmvm::Bool = (VMLMB_DEFAULT.blmvm != 0),
+               savemem::Bool = (VMLMB_DEFAULT.savemem != 0),
+               maxeval::Integer = typemax(Int),
+               maxiter::Integer = typemax(Int),
+               verb::Bool = false,
+               debug::Bool = false) where {T<:Floats,N}
     # Create an optimizer and solve the problem.
     #options = VMLMBoptions(mem=mem)
     options = VMLMBoptions(delta=delta, epsilon=epsilon,
@@ -1222,21 +1224,24 @@ function vmlmb(fg!::Function, x0::DenseArray{T,N};
         box = BoxedSet(space, lower, upper)
     end
     opt = VMLMB(options, space, lnsrch, box)
-    solve(opt, fg!, x0, maxeval=maxeval, maxiter=maxiter,
-          verb=verb, debug=debug)
+    x = copyto!(Array{T,N}(undef, size(x0)), x0)
+    solve!(opt, fg!, x, Int(maxeval), Int(maxiter), verb, debug)
 end
 
-function solve(opt::LimitedMemoryOptimizer, fg!::Function, x0::DenseArray;
-               maxeval::Integer=-1, maxiter::Integer=-1,
-               verb::Bool=false, debug::Bool=false)
+function solve!(opt::LimitedMemoryOptimizer,
+                fg!::Function,
+                x::Array{T,N},
+                maxeval::Int,
+                maxiter::Int,
+                verb::Bool,
+                debug::Bool) where {T<:Floats,N}
     if debug
         @printf("gatol=%E; grtol=%E; stpmin=%E; stpmax=%E\n",
                 get_gatol(opt), get_grtol(opt),
                 get_stpmin(opt), get_stpmax(opt))
     end
-    dims = size(x0)
+    dims = size(x)
     space = opt.space
-    x = copy(x0)
     g = similar(x)
     wx = wrap(space, x)
     wg = wrap(space, g)

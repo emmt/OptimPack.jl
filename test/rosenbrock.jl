@@ -26,10 +26,8 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   lbfgs(rosenbrock_fg!, x0, m, verb=VERBOSE)
 end
 
-# Run tests in double and single precisions.
-for (T, prec) in ((Float64, "double"), (Float32, "single"))
-
-    n = 20
+function run_tests(::Type{T}, n::Integer=20) where {T}
+    prec = (T <: Float64 ? "double" : "single")
     x0 = Array{T}(undef, n)
     xsol = ones(T,n)
     atol = 1e-3
@@ -43,14 +41,14 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x2 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE)
-               #scaling=OptimPack.SCALING_OREN_SPEDICATO)
+    #scaling=OptimPack.SCALING_OREN_SPEDICATO)
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x3 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, mem=15)
-               #scaling=OptimPack.SCALING_OREN_SPEDICATO)
+    #scaling=OptimPack.SCALING_OREN_SPEDICATO)
     err = maximum(abs.(x3 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -67,5 +65,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     #err = maximum(abs.(x5 .- xsol))
     #@printf("Maximum absolute error: %.3e\n", err)
     #@test err < atol
-
 end
+
+# Run tests in double and single precisions.
+run_tests(Float32)
+run_tests(Float64)
