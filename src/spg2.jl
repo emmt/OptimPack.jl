@@ -38,8 +38,8 @@ using ..OptimPack:
     wrap
 
 mutable struct Info{T,N}
-    x::DenseArray{T,N}
-    xbest::DenseArray{T,N}
+    x::Array{T,N}
+    xbest::Array{T,N}
     f::Float64
     fbest::Float64
     pgtwon::Float64
@@ -110,7 +110,8 @@ The following keywords are available:
   instance, if you make a change of variables or simply multiply the function
   by some factor).
 
-* `ftol` (default: `ftol = 1e-4`).
+* `ftol` specify the parameter of the nonmonotone Armijo-like stopping
+  criterion.  By default: `ftol = 1e-4`.
 
 * `lmin` and `lmax` specify safeguard bounds for the steplength.  By default,
   `lmin = 1e-30` and `lmax = 1e+30`.
@@ -134,8 +135,10 @@ The following keywords are available:
 
 The `SPG.Info` type has the following members:
 
+* `x` is the current iterate.
 * `f` is the function value.
-* `fbest` is the best function value so far.
+* `xbest` is the best solution so far.
+* `fbest` is the function value at `xbest`.
 * `pginfn` is the infinite norm of the projected gradient.
 * `pgtwon` is the Eucliddean norm of the projected gradient.
 * `iter` is the number of iterations.
@@ -164,7 +167,7 @@ The `SPG.Info` type has the following members:
 """
 function spg2(fg!::Function,
               prj!::Function,
-              x0::DenseArray{T,N},
+              x0::AbstractArray{T,N},
               m::Integer = 10;
               maxit::Integer = typemax(Int),
               maxfc::Integer = typemax(Int),
@@ -179,15 +182,38 @@ function spg2(fg!::Function,
               printer = nothing,
               io::IO = stdout,
               verb::Bool = false) where {T<:AbstractFloat,N}
+    x = copyto!(Array{T}(undef, size(x0)), x0)
+    _spg!(fg!, prj!, x, Int(m), Int(maxit), Int(maxfc),
+          Float64(eps1), Float64(eps2), Float64(eta), Float64(ftol),
+          Float64(lmin), Float64(lmax), Float64(amin), Float64(amax),
+          printer, io, verb)
+end
+
+function _spg!(fg!::Function,
+               prj!::Function,
+               x::Array{T,N},
+               m::Int,
+               maxit::Int,
+               maxfc::Int,
+               eps1::Float64,
+               eps2::Float64,
+               eta::Float64,
+               ftol::Float64,
+               lmin::Float64,
+               lmax::Float64,
+               amin::Float64,
+               amax::Float64,
+               printer,
+               io::IO,
+               verb::Bool) where {T<:AbstractFloat,N}
 
     # Allocate workspace.
-    x0 = copy(x0)
-    dims = size(x0)
+    dims = size(x)
     space = DenseVariableSpace(T, dims)
-    d = Array{T}(undef, dims)
-    g = Array{T}(undef, dims)
-    x = Array{T}(undef, dims)
-    g = Array{T}(undef, dims)
+    d  = Array{T}(undef, dims)
+    g  = Array{T}(undef, dims)
+    g  = Array{T}(undef, dims)
+    x0 = Array{T}(undef, dims)
     g0 = Array{T}(undef, dims)
     xbest = Array{T}(undef, dims)
 
@@ -209,8 +235,8 @@ function spg2(fg!::Function,
     end
 
     # Project initial guess.
-    prj!(x0, x0)
-    copyto!(x, x0)
+    prj!(x, x)
+    copyto!(x0, x)
     ws.pcnt += 1
 
     # Evaluate function and gradient.
