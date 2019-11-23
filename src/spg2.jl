@@ -22,7 +22,22 @@
 #
 # ----------------------------------------------------------------------------
 
-mutable struct SPGResult{T,N}
+module SPG
+
+export
+    spg2
+
+using Printf
+using ..OptimPack:
+    DenseVariable,
+    DenseVariableSpace,
+    combine!,
+    dot,
+    norm2,
+    norminf,
+    wrap
+
+mutable struct Info{T,N}
     x::DenseArray{T,N}
     xbest::DenseArray{T,N}
     f::Float64
@@ -33,11 +48,10 @@ mutable struct SPGResult{T,N}
     pcnt::Int
     iter::Int
     status::Symbol
-    #(::Type{SPGResult(x::DenseArray{T,N}}){T,N}, xbest::DenseArray{T,N}) =
-    #    new{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :SEARCHING)
 end
-SPGResult(x::DenseArray{T,N}, xbest::DenseArray{T,N}) where {T,N} =
-    SPGResult{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :SEARCHING)
+
+Info(x::DenseArray{T,N}, xbest::DenseArray{T,N}) where {T,N} =
+    Info{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :SEARCHING)
 
 """
 # Spectral Projected Gradient Method
@@ -72,8 +86,8 @@ previous function values to be considered in the nonmonotone line search.  If
 `m ≤ 1`, then a monotone line search with Armijo-like stopping criterion will
 be used.
 
-The returned value `res` is an instance of `SPGResult` storing information
-about the final iterate.
+The returned value `res` is an instance of `SPG.Info` storing information about
+the final iterate.
 
 The following keywords are available:
 
@@ -112,13 +126,13 @@ The following keywords are available:
 
 * `printer` specifies a subroutine to print some information at each iteration.
   This subroutine will be called as `printer(io, ws)` with `io` the output
-  stream and `ws` an instance of `SPGResult` with information about the current
+  stream and `ws` an instance of `SPG.Info` with information about the current
   iterate.
 
 * `io` specifes the output stream for iteration information.  It is `stdout` by
   default.
 
-The `SPGResult` type has the following members:
+The `SPG.Info` type has the following members:
 
 * `f` is the function value.
 * `fbest` is the best function value so far.
@@ -185,7 +199,7 @@ function spg2(fg!::Function,
     Vg0 = wrap(space, g0)
 
     # Initialization.
-    ws = SPGResult(x, xbest)
+    ws = Info(x, xbest)
     local sty, sts, f0, f
     if m > 1
         lastfv = Array{T}(undef, m)
@@ -340,3 +354,5 @@ function spg2(fg!::Function,
 
     end
 end
+
+end # module

@@ -56,5 +56,6 @@ include("bindings.jl")
 include("Brent.jl")
 include("powell.jl")
 include("spg2.jl")
+import .SPG: spg2
 
 end # module
