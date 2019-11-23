@@ -22,7 +22,7 @@
 #
 # ----------------------------------------------------------------------------
 
-mutable struct SpgResult{T,N}
+mutable struct SPGResult{T,N}
     x::DenseArray{T,N}
     xbest::DenseArray{T,N}
     f::Float64
@@ -33,12 +33,121 @@ mutable struct SpgResult{T,N}
     pcnt::Int
     iter::Int
     status::Symbol
-    #(::Type{SpgResult(x::DenseArray{T,N}}){T,N}, xbest::DenseArray{T,N}) =
+    #(::Type{SPGResult(x::DenseArray{T,N}}){T,N}, xbest::DenseArray{T,N}) =
     #    new{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :SEARCHING)
 end
-SpgResult(x::DenseArray{T,N}, xbest::DenseArray{T,N}) where {T,N} =
-    SpgResult{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :SEARCHING)
+SPGResult(x::DenseArray{T,N}, xbest::DenseArray{T,N}) where {T,N} =
+    SPGResult{T,N}(x, xbest, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, :SEARCHING)
 
+"""
+# Spectral Projected Gradient Method
+
+The `spg2` method implements the Spectral Projected Gradient Method (Version 2:
+"continuous projected gradient direction") to find the local minimizers of a
+given function with convex constraints, described in the references below.  A
+typical use is:
+
+```julia
+spg2(fg!, prj!, x0, m=10) -> res
+```
+
+The user must supply the functions `fg!` and `prj!` to evaluate the objective
+function and its gradient and to project an arbitrary point onto the feasible
+region.  These functions must be defined as in the following pseudo-code:
+
+```julia
+function fg!(x::T, g::T) where {T}
+   g[:] = gradient_at(x)
+   return function_value_at(x)
+end
+
+function prj!(dst::T, src::T) where {T}
+    dst[:] = projection_of(src)
+    return dst
+end
+```
+
+Argument `x0` is the initial solution and argument `m` is the number of
+previous function values to be considered in the nonmonotone line search.  If
+`m ≤ 1`, then a monotone line search with Armijo-like stopping criterion will
+be used.
+
+The returned value `res` is an instance of `SPGResult` storing information
+about the final iterate.
+
+The following keywords are available:
+
+* `eps1` specifies the stopping criterion `‖pg‖_∞ ≤ eps1` with `pg` the
+  projected gradient.  By default, `eps1 = 1e-6`.
+
+* `eps2` specifies the stopping criterion `‖pg‖_2 ≤ eps2` with `pg` the
+  projected gradient.  By default, `eps2 = 1e-6`.
+
+* `eta` specifies a scaling parameter for the gradient.  The projected gradient
+  is computed as:
+
+  ```
+  (x - prj(x - eta*g))/eta
+  ```
+
+  (with `g` the gradient at `x`) instead of `x - prj(x - g)` which corresponds
+  to the default behavior (same as if `eta=1`) and is usually used in
+  methodological publications although it does not scale correctly (for
+  instance, if you make a change of variables or simply multiply the function
+  by some factor).
+
+* `ftol` (default: `ftol = 1e-4`).
+
+* `lmin` and `lmax` specify safeguard bounds for the steplength.  By default,
+  `lmin = 1e-30` and `lmax = 1e+30`.
+
+* `amin` and `amax` specify safeguardbounds for the qiadratic interpolation.
+   By default, `amin = 0.1` and `amax = 0.9`.
+
+* `maxit` specifies the maximum number of iterations.
+
+* `maxfc` specifies the maximum number of function evaluations.
+
+* `verb` indicates whether to print some information at each iteration.
+
+* `printer` specifies a subroutine to print some information at each iteration.
+  This subroutine will be called as `printer(io, ws)` with `io` the output
+  stream and `ws` an instance of `SPGResult` with information about the current
+  iterate.
+
+* `io` specifes the output stream for iteration information.  It is `stdout` by
+  default.
+
+The `SPGResult` type has the following members:
+
+* `f` is the function value.
+* `fbest` is the best function value so far.
+* `pginfn` is the infinite norm of the projected gradient.
+* `pgtwon` is the Eucliddean norm of the projected gradient.
+* `iter` is the number of iterations.
+* `fcnt` is the number of function (and gradient) evaluations.
+* `pcnt` is the number of projections.
+* `status` indicates the type of termination:
+
+  | Status                  | Reason                                          |
+  |:------------------------|:------------------------------------------------|
+  | `:SEARCHING`            | Work in progress                                |
+  | `:INFNORM_CONVERGENCE`  | Convergence of projected gradient infinite-norm |
+  | `:TWONORM_CONVERGENCE`  | Convergence of projected gradient 2-norm        |
+  | `:TOO_MANY_ITERATIONS`  | Too many iterations                             |
+  | `:TOO_MANY_EVALUATIONS` | Too many function evaluations                   |
+
+
+## References
+
+* E. G. Birgin, J. M. Martinez, and M. Raydan, "Nonmonotone spectral projected
+  gradient methods on convex sets", SIAM Journal on Optimization 10,
+  pp. 1196-1211 (2000).
+
+* E. G. Birgin, J. M. Martinez, and M. Raydan, "SPG: software for
+  convex-constrained optimization", ACM Transactions on Mathematical Software
+  (TOMS) 27, pp. 340-349 (2001).
+"""
 function spg2(fg!::Function,
               prj!::Function,
               x0::DenseArray{T,N},
@@ -54,6 +163,7 @@ function spg2(fg!::Function,
               amin::Real = 0.1,
               amax::Real = 0.9,
               printer = nothing,
+              io::IO = stdout,
               verb::Bool = false) where {T<:AbstractFloat,N}
 
     # Allocate workspace.
@@ -75,7 +185,7 @@ function spg2(fg!::Function,
     Vg0 = wrap(space, g0)
 
     # Initialization.
-    ws = SpgResult(x, xbest)
+    ws = SPGResult(x, xbest)
     local sty, sts, f0, f
     if m > 1
         lastfv = Array{T}(undef, m)
@@ -111,7 +221,7 @@ function spg2(fg!::Function,
 
         # Print iteration information
         if printer !== nothing
-            printer(ws)
+            printer(io, ws)
         end
         if verb
             @printf("ITER = %-5d  EVAL = %-5d  PROJ = %-5d  F(%s) =%24.17e  ||PG||oo = %17.10e\n",
