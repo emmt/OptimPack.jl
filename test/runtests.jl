@@ -15,6 +15,7 @@ function banner(str::AbstractString)
 end
 
 include("rosenbrock.jl")
+include("spg2-tests.jl")
 
 if true
     include("cobyla-tests.jl")
