@@ -81,6 +81,20 @@ function prj!(dst::T, src::T) where {T}
 end
 ```
 
+For instance, to constrain the variables to be all nonnegative, the following
+projector should be specified:
+
+```julia
+function prj!(dst::AbstractArray{T,N},
+              src::AbstractArray{T,N}) where {T,N}
+    @assert axes(dst) == axes(src)
+    @inbounds @simd for i in eachindex(dst, src)
+        dst[i] = max(src[i], zero(T))
+    end
+    return dst
+end
+```
+
 Argument `x0` is the initial solution and argument `m` is the number of
 previous function values to be considered in the nonmonotone line search.  If
 `m ≤ 1`, then a monotone line search with Armijo-like stopping criterion will
