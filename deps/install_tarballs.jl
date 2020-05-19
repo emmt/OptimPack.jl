@@ -33,7 +33,7 @@ download_info = Dict(
 if any(!satisfied(p; verbose=verbose) for p in products)
     try
         # Download and install binaries
-        url, tarball_hash = select_platform(download_info)
+        url, tarball_hash = choose_download(download_info)
         install(url, tarball_hash; prefix=prefix, force=true, verbose=true)
     catch e
         if typeof(e) <: ArgumentError
