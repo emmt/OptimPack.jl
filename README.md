@@ -14,12 +14,15 @@ library for solving large scale optimization problems.
 ### Installation using pre-compiled libraries
 
 From a Julia session, press `]` to enter the Pkg REPL and type the following commands:
+
 ```julia
 (...) pkg> add https://github.com/emmt/OptimPack.jl
 ```
+
 to install and build the package.  This just has to be done once.
 
 To use the package in your code:
+
 ```julia
 using OptimPack
 ```
@@ -27,14 +30,16 @@ using OptimPack
 ### Installation with your own compiled libraries
 
 By default, the package manager will attend to download precompiled OptimPack
-libraries for your architecture so that you have nothing to compile.  If your
-system is not part of the supported architectures or if you want to use
+libraries for your architecture so that you have nothing to compile.  These
+libraries are provided by the
+[OptimPackBuilder](https://github.com/emmt/OptimPackBuilder) project.  If your
+system is not part of the supported platforms or if you want to use
 OptimPack libraries compiled and installed by yourself (see intructions at
 [official OptimPack repository][lib-optimpack-url]) then you have to define 4
-environment variables **before** building  `OptimPack.jl` package.  Each of these
-environment variables specifies the full path to one of the OptimPack dynamic
-libraries. These environment variables can be set before starting Julia or at
-Julia REPL, for instance by:
+environment variables **before** building `OptimPack.jl` package.  Each of
+these environment variables specifies the full path to one of the OptimPack
+dynamic libraries. These environment variables can be set before starting Julia
+or at Julia REPL, for instance by:
 
 ```julia
 ENV["OPTIMPACK_OPK_LIB"] = "/usr/local/lib/libopk.so"
@@ -49,6 +54,9 @@ REPL and type the following commands:
 ```julia
 (...) pkg> add https://github.com/emmt/OptimPack.jl
 ```
+
+You may use URL `git@github.com:emmt/OptimPack.jl` if you want to use SSH
+instead of HTTPS.
 
 If you define the environment variables after adding `OptimPack.jl` package,
 just re-build the package:
@@ -265,7 +273,7 @@ type and dimensions apply).
 Note that `arr` must be a **dense array** (of type `DenseArray`) as the
 elements of *shaped* vectors are supposed to be stored contiguously in
 memory.  OptimPack offers the possibility to create custom vector spaces
-and this will be exploited in a near futur to allow for other flavors of
+and this will be exploited in a near future to allow for other flavors of
 Julia arrays.
 
 
