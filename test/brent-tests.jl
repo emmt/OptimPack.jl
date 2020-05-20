@@ -6,7 +6,7 @@
 module BrentTests
 
 using Test, Printf
-import OptimPackNextGen.Brent
+import OptimPack.Brent
 
 # Counter of function evaluations.
 const cnt = Ref{Int}(0)
