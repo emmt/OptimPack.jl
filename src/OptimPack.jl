@@ -3,20 +3,18 @@
 #
 # Julia wrapper for OptimPack.
 #
-# ----------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
-# License:
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License.
 #
-# Copyright (C) 2014-2019, Éric Thiébaut.
+# Copyright (C) 2014-2020, Éric Thiébaut.
 #
-# ----------------------------------------------------------------------------
 
 module OptimPack
 
 export
     fmin,
-    fmin_global,
     fzero,
     nlcg,
     spg2,
@@ -47,15 +45,19 @@ import Base:
 
 import LinearAlgebra: dot
 
-isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||
+_path_to_deps_jl = joinpath(@__DIR__, "..", "deps", "deps.jl")
+isfile(_path_to_deps_jl) ||
     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
-include("../deps/deps.jl")
+include(_path_to_deps_jl)
 
 # Load pieces of code.
 include("bindings.jl")
-include("Brent.jl")
+include("brent.jl")
+include("bradi.jl")
 include("powell.jl")
 include("spg2.jl")
 import .SPG: spg2
+
+@deprecate fmin_global BraDi.minimize
 
 end # module

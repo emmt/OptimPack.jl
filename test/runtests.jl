@@ -14,6 +14,7 @@ function banner(str::AbstractString)
     println(line)
 end
 
+include("brent-tests.jl")
 include("rosenbrock.jl")
 include("spg2-tests.jl")
 
