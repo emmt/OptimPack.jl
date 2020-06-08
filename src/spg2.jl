@@ -38,16 +38,16 @@ using ..OptimPack:
     wrap
 
 mutable struct Info{T,N}
-    x::Array{T,N}
-    xbest::Array{T,N}
-    f::Float64
-    fbest::Float64
-    pgtwon::Float64
-    pginfn::Float64
-    fcnt::Int
-    pcnt::Int
-    iter::Int
-    status::Symbol
+    x::Array{T,N}      # current iterate
+    xbest::Array{T,N}  # best solution found so far
+    f::Float64         # function value at `x`
+    fbest::Float64     # function value at `xbest`
+    pgtwon::Float64    # Euclidean norm of the projected gradient at `x`
+    pginfn::Float64    # infinite norm of the projected gradient at `x`
+    fcnt::Int          # number of function and gradient evaluations
+    pcnt::Int          # number of projections
+    iter::Int          # number of iterations
+    status::Symbol     # status of the algorithm
 end
 
 Info(x::DenseArray{T,N}, xbest::DenseArray{T,N}) where {T,N} =
@@ -221,51 +221,59 @@ function _spg!(fg!::Function,
                io::IO,
                verb::Bool) where {T<:AbstractFloat,N}
 
-    # Allocate workspace.
+    @assert m ≥ 1
+    @assert maxit ≥ 0
+    @assert maxfc ≥ 0
+    @assert eps1 ≥ 0
+    @assert eps2 ≥ 0
+    @assert eta > 0
+    @assert ftol > 0
+    @assert 0 < lmin < lmax
+    @assert 0 < amin < amax
+
+    # Allocate workspace arrays.
     dims = size(x)
-    space = DenseVariableSpace(T, dims)
-    d  = Array{T}(undef, dims)
-    g  = Array{T}(undef, dims)
-    g  = Array{T}(undef, dims)
+    g = Array{T}(undef, dims)
+    d = Array{T}(undef, dims)
     x0 = Array{T}(undef, dims)
     g0 = Array{T}(undef, dims)
     xbest = Array{T}(undef, dims)
+    lastfv = Array{Float64}(undef, m)
 
-    # Wrap OptimPack variables over Julia workspace arrays.
+    # Wrap OptimPack variables over Julia workspace arrays (making a few
+    # aliases to save memory).
+    space = DenseVariableSpace(T, dims)
     Vx = wrap(space, x)
     Vg = wrap(space, g)
     Vd = wrap(space, d)
-    Vx0 = wrap(space, x0)
-    Vg0 = wrap(space, g0)
+    Vs = Vx0 = wrap(space, x0)
+    Vy = Vg0 = wrap(space, g0)
 
     # Initialization.
     ws = Info(x, xbest)
-    local sty, sts, f0, f
-    if m > 1
-        lastfv = Array{T}(undef, m)
-        fill!(lastfv, T(Inf))
-    else
-        lastfv = nothing
-    end
 
     # Project initial guess.
     prj!(x, x)
-    copyto!(x0, x)
     ws.pcnt += 1
 
     # Evaluate function and gradient.
-    f = fg!(x, g)
+    f = Float64(fg!(x, g))
     ws.fcnt += 1
 
     # Initialize best solution and best function value.
     ws.fbest = f
     copyto!(xbest, x)
 
+    # List of `m` previous function values.
+    fill!(lastfv, Inf)
+    # FIXME: should be: fill!(lastfv, f) # or -Inf
+    lastfv[1] = f
+
     # Main loop.
     while true
 
-        # Compute continuous projected gradient (and its norms)
-        # as: `pg = (x - prj(x - eta*g))/eta`.
+        # Compute continuous projected gradient (and its norms) using the
+        # storage of `d` as: `pg = (x - prj(x - eta*g))/eta`.
         combine!(Vd, 1, Vx, -eta, Vg)
         prj!(d, d)
         combine!(Vd, 1/eta, Vx, -1/eta, Vd)
@@ -273,7 +281,7 @@ function _spg!(fg!::Function,
         ws.pgtwon = norm2(Vd)
         ws.pginfn = norminf(Vd)
 
-        # Print iteration information
+        # Print iteration information.
         if printer !== nothing
             printer(io, ws)
         end
@@ -316,10 +324,8 @@ function _spg!(fg!::Function,
         # Compute spectral steplength.
         if ws.iter == 0
             # Initial steplength. (FIXME: check type stability)
-            lambda = min(lmax, max(lmin, 1/ws.pginfn))
+            lambda = clamp(1/ws.pginfn, lmin, lmax)
         else
-            Vs = Vx0 # alias
-            Vy = Vg0 # alias
             combine!(Vs, 1, Vx, -1, Vx0)
             combine!(Vy, 1, Vg, -1, Vg0)
             sty = dot(Vs, Vy)
@@ -348,7 +354,7 @@ function _spg!(fg!::Function,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            f = fg!(x, g)
+            f = Float64(fg!(x, g))
             ws.fcnt += 1
 
             # Compare the new function value against the best function
@@ -391,7 +397,6 @@ function _spg!(fg!::Function,
 
         # Proceed with next iteration.
         ws.iter += 1
-
     end
 end
 
