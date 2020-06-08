@@ -1176,13 +1176,12 @@ Minimizing the smooth mulivariate function `f(x)` by a limited-memory version
 of the LBFGS variable metric method is done by:
 
 ```
-x = vmlmb(fg!, x0, mem)
+x = vmlmb(fg!, x0)
 ```
 
 where `fg!` implements the objective function (see below), `x0` gives the
 initial value of the variables (as well as the data type and dimensions of the
-solution) and optional argument `mem` is the number of previous steps to
-memorize (by default `mem = 3`).
+solution).
 
 The objective function is implemented by `fg!` which is called as:
 
@@ -1193,6 +1192,9 @@ f = fg!(x, g)
 with `x` the current variables and `g` a Julia array (of same type and
 simensions as `x`) to store the gradient of the function.  The value returned
 by `fg!` is `f(x)`.
+
+Keyword `mem` can be used to specify the number of previous steps to memorize
+(by default `mem = 3`)
 
 """
 function vmlmb(fg!::Function, x0::DenseArray{T,N};
@@ -1275,10 +1277,12 @@ function solve!(opt::LimitedMemoryOptimizer,
                 return x
             end
         elseif task == TASK_WARNING
-            @printf("some warnings...\n")
+            @printf("some warnings: %s (status=%d)\n",
+                    get_reason(get_status(opt)), get_status(opt))
             return x
         elseif task == TASK_ERROR
-            @printf("some errors...\n")
+            @printf("some errors: %s (status=%d)\n",
+                    get_reason(get_status(opt)), get_status(opt))
             return nothing
         else
             @printf("unexpected task...\n")
