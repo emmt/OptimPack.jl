@@ -57,7 +57,7 @@ include("bradi.jl")
 include("powell.jl")
 include("spg2.jl")
 import .SPG: spg2
-
+import .Brent: fzero, fmin
 @deprecate fmin_global BraDi.minimize
 
 end # module
