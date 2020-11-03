@@ -290,8 +290,8 @@ Run-time errors throw Julia exception.
 [license-url]: ./LICENSE.md
 [license-img]: http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat
 
-[travis-img]: https://travis-ci.org/emmt/OptimPack.jl.svg?branch=master
-[travis-url]: https://travis-ci.org/emmt/OptimPack.jl
+[travis-img]: https://travis-ci.com/emmt/OptimPack.jl.svg?branch=master
+[travis-url]: https://travis-ci.com/emmt/OptimPack.jl
 
 [appveyor-img]: https://ci.appveyor.com/api/projects/status/github/emmt/OptimPack.jl?branch=master
 [appveyor-url]: https://ci.appveyor.com/project/emmt/OptimPack-jl/branch/master
