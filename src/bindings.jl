@@ -270,21 +270,20 @@ Base.elsize(::Type{<:DenseVariable{T,N}}) where {T,N} = elsize(Array{T,N})
 Base.sizeof(obj::DenseVariable) = sizeof(values(obj))
 Base.pairs(S::IndexLinear, obj::DenseVariable) = pairs(S, values(obj))
 
-@inline Base.iterate(obj::DenseVariable, i=1) =
-    ((i % UInt) - 1 < length(obj) ?
-     (@inbounds  getindex(values(obj), i), i + 1) : nothing)
+@inline Base.iterate(A::DenseVariable, i=1) =
+    ((i % UInt) - 1 < length(A) ?
+     (@inbounds  getindex(values(A), i), i + 1) : nothing)
 
-@inline @propagate_inbounds function Base.getindex(obj::DenseVariable,
-                                                   i::Int)
-    @boundscheck checkbounds(obj, i)
-    @inbounds r = getindex(values(obj), i)
-    return r
+@inline function Base.getindex(A::DenseVariable, i::Int)
+    @boundscheck checkbounds(A, i)
+    @inbounds val = values(A)[i]
+    return val
 end
 
-@inline @propagate_inbounds function Base.setindex!(obj::DenseVariable, x, i::Int)
-    @boundscheck checkbounds(obj, i)
-    @inbounds r = setindex!(values(obj), x, i)
-    return r
+@inline function Base.setindex!(A::DenseVariable, val, i::Int)
+    @boundscheck checkbounds(A, i)
+    @inbounds values(A)[i] = val
+    return A
 end
 
 """
