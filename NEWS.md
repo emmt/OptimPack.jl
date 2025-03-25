@@ -1,5 +1,8 @@
 # User visible changes in `OptimPack`
 
+- `OptimPack` now depends on the artifact `OptimPack_jll`. As a result, installation is
+  easier and following the evolution of the C library should be transparent.
+
 ## Version 1.1.0
 
 - Optional argument `mem` is now a keyword in methods `vmlmb` and `vmlmb!`.
