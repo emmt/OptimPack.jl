@@ -1,7 +1,7 @@
 module NewuoaTests
 
-using Printf
-using OptimPack.Powell
+using Printf, Test
+using OptimPack.Newuoa
 
 function runtests(;revcom::Bool=false, scale::Real=1)
     # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with
@@ -59,15 +59,21 @@ function runtests(;revcom::Bool=false, scale::Real=1)
                 println("Something wrong occured in NEWUOA: ",
                         getreason(status))
             end
-        elseif scale != 1
-            Newuoa.minimize!(ftest, x, rhobeg/scale, rhoend/scale;
-                             scale = fill!(similar(x), scale),
-                             npt = npt, verbose = 2, maxeval = 5000)
         else
-            newuoa!(ftest, x, rhobeg, rhoend;
-                    npt = npt, verbose = 2, maxeval = 5000)
+            status, _, fx = if scale != 1
+                newuoa!(ftest, x; rhobeg=rhobeg/scale, rhoend=rhoend/scale,
+                        scale = fill!(similar(x), scale),
+                        npt, verbose = 2, maxeval = 5000)
+            else
+                newuoa!(ftest, x; rhobeg, rhoend, npt, verbose = 2, maxeval = 5000)
+            end
+            @test issuccess(status)
+            @test status.code isa Integer
+            @test status.reason isa String
         end
     end
 end
+
+isinteractive() && runtests()
 
 end # module

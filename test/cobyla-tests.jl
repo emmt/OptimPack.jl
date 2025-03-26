@@ -1,7 +1,7 @@
 module CobylaTests
 
-using Printf
-using OptimPack.Powell
+using Printf, Test
+using OptimPack.Cobyla
 
 function runtests(;revcom::Bool = false, scale::Real = 1.0)
     # Beware that order of operations may affect the result (whithin
@@ -276,16 +276,19 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                     end
                 end
                 if status != Cobyla.SUCCESS
-                    println("Something wrong occured in COBYLA: ",
-                            getreason(status))
+                    println("Something wrong occurred in COBYLA: ", status.reason)
                 end
-            elseif scale == 1
-                cobyla!(ftest, x, m, rhobeg, rhoend;
-                        verbose = 1, maxeval = 2000)
             else
-                Cobyla.minimize!(ftest, x, m, rhobeg/scale, rhoend/scale;
-                                 scale = fill!(Array{Cdouble}(undef, n), scale),
-                                 verbose = 1, maxeval = 2000)
+                status, _, fx = if scale == 1
+                    cobyla!(ftest, x; m, rhobeg, rhoend, verbose = 1, maxeval = 2000)
+                else
+                    cobyla!(ftest, x; m, rhobeg=rhobeg/scale, rhoend=rhoend/scale,
+                            scale = fill!(Array{Cdouble}(undef, n), scale),
+                            verbose = 1, maxeval = 2000)
+                end
+                @test issuccess(status)
+                @test status.code isa Integer
+                @test status.reason isa String
             end
             if nprob == 10
                 tempa = x[1] + x[3] + x[5] + x[7]
@@ -310,5 +313,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
         @printf("  ------------------------------------------------------------------\n")
     end
 end
+
+isinteractive() && runtests()
 
 end # module

@@ -1,44 +1,126 @@
-#
-# newuoa.jl --
-#
-# Julia interface to Mike Powell's NEWUOA method.
-#
-# -----------------------------------------------------------------------------
-#
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License:
-#
-# Copyright (C) 2015-2019, Éric Thiébaut <https://github.com/emmt/OptimPack.jl>.
-#
+"""
 
+Module `Newuoa` provides Mike Powell's NEWUOA algorithm to minimize a function of many
+variables.
+
+"""
 module Newuoa
 
 export
-    newuoa,
-    newuoa!
+    # Specific symbols.
+    newuoa, newuoa!,
 
-using Printf
+    # Common API.
+    configure!,
+    issuccess,
+    maximize, maximize!,
+    minimize, minimize!,
+    optimize, optimize!
 
-import
-    ..AbstractContext,
-    ..AbstractStatus,
-    ..getncalls,
-    ..getradius,
-    ..getreason,
-    ..getstatus,
-    ..grow!,
-    ..iterate,
-    ..restart
+using ..Powell
+using ..Powell: rho_reduction
 
-# The dynamic library implementing the method.
-import ..libnewuoa
+const libnewuoa = Powell.OptimPack_jll.libnewuoa
 
-# Status returned by most functions of the library.
-struct Status <: AbstractStatus
-    _code::Cint
+"""
+    newuoa(f, x0; rhobeg, rhoend=$rho_reduction*rhobeg, npt=2*length(x0)+1,
+           scale=1.0, verbose=0, maxeval=30*length(x0), maximize=false) -> status, x, fx
+
+runs *NEWUOA* algorithm to find the variables `x` which solve the unconstrained problem:
+
+    min f(x)
+
+where `x` is a vector of variables that has `n ≥ 2` components and `f(x)` is an objective
+function. The algorithm employs quadratic approximations to the objective which
+interpolates the objective function at a number of points specified by keyword `npt`, the
+value `npt = 2n + 1` being recommended. The parameter `rho` controls the size of the trust
+region and it is reduced automatically from `rhobeg` to `rhoend`.
+
+The method returns a 3-tuple: `status` indicates whether the algorithm was successful, `x`
+is the final value of the variables and `fx` is the objective function at `x`. Normally,
+`status` should be `Newuoa.SUCCESS` or equivalently `issuccess(status)` should be true;
+otherwise, `status.reason` yields a textual explanation about the failure.
+
+
+## Precision and scaling of variables
+
+The proper scaling of the variables is important for the success of the algorithm and the
+optional `scale` keyword should be specified if the typical precision is not the same for
+all variables. If `scale` is vector of same size as the variables `x`, then `scale[i]*rho`
+(with `rho` the trust region radius) is the size of the trust region for the `i`-th
+variable. Hence, `scale[i]*rhobeg` is the size of the initial range to explore for the
+`i`-th variable while `scale[i]*rhoend` is an estimation of the precision of the `i`-th
+variable for the solution. Keyword `scale` may also be set to a positive scalar to assume
+the same scaling factor for all variables. In any case, all scaling factors must be finite
+and strictly positive. If keyword `scale` is not specified, a unit scaling for all the
+variables is assumed.
+
+
+## Keywords
+
+The following keywords are available:
+
+* `rhobeg` and `rhoend` are the initial and final sizes of the trust region. `0 < rhoend ≤
+  rhobeg` must hold.
+
+* `scale` gives the typical magnitudes of the variables. It is a scalar (to have the same
+  scale for all variables) or a vector with as many elements as `x`. The scaling factors
+  must be all finite and strictly positive.
+
+* `verbose` is the amount of printing.
+
+* `maxeval` is the maximum number of calls to the objective function.
+
+* `npt` is the number of points to use for the quadratic approximation of the objective
+  function. The default setting is the recommended value: `npt = 2n + 1` with `n =
+  length(x)` the number of variables.
+
+* `maximize` specifies whether to attempt to maximize the objective function; otherwise,
+  the algorithm attempts to minimize the objective function.
+
+
+## Related methods
+
+* [`newuoa!`](@ref) is the in-place version of the algorithm.
+
+* See [`Newuoa.Context`](@ref) for another way to apply the algorithm which is useful to
+  retrieve more information about the algorithm state or to solve several similar problems
+  while avoiding allocations and thus the overhead of the garbage collector.
+
+
+## References
+
+The algorithm is described in:
+
+* M.J.D. Powell, "The NEWUOA software for unconstrained minimization without derivatives,"
+  in Large-Scale Nonlinear Optimization, editors G. Di Pillo and M. Roma, Springer, pp.
+  255-297 (2006).
+
+"""
+newuoa(f::Function, x::AbstractVector{<:Real}; kwds...) =
+    newuoa!(f, copy_variables(x); kwds...)
+
+"""
+    newuoa!(f, x; kwds...) -> status, x, fx
+
+runs the in-place version of **NEWUOA** algorithm to find the variables `x` which solve a
+bound constrained optimization problem. On entry, argument `x` specifies the initial
+variables; on return, `x` is overwritten by the solution. See [`newuoa`](@ref) for a
+description of the algorithm and of the available keywords.
+
+"""
+function newuoa!(f::Function, x::DenseVector{Cdouble}; kwds...)
+    ctx = Context(length(x); kwds...)
+    optimize!(ctx, f, x)
+    return ctx.status, x, ctx.fbest
 end
 
-# Possible status values returned by NEWUOA.
+# Status returned by NEWUOA.
+struct Status <: Powell.AbstractStatus
+    code::Cint
+end
+
+# Possible status values returned by NEWUOA (as defined in C header file `newuoa.h`).
 const INITIAL_ITERATE      = Status( 2)
 const ITERATE              = Status( 1)
 const SUCCESS              = Status( 0)
@@ -53,300 +135,185 @@ const BAD_ADDRESS          = Status(-8)
 const CORRUPTED            = Status(-9)
 
 # Get a textual explanation of the status returned by NEWUOA.
-function getreason(status::Status)
-    ptr = ccall((:newuoa_reason, libnewuoa), Ptr{UInt8}, (Cint,), status._code)
-    if ptr == C_NULL
-        error("unknown NEWUOA status: ", status._code)
+Powell._getproperty(status::Status, ::Val{:reason}) =
+    status == INITIAL_ITERATE      ? "Algorithm not yet started" :
+    status == ITERATE              ? "Caller is requested to evaluate the objective function" :
+    status == SUCCESS              ? "Algorithm converged" :
+    status == BAD_NVARS            ? "Bad number of variables" :
+    status == BAD_NPT              ? "NPT is not in the required interval" :
+    status == BAD_RHO_RANGE        ? "Invalid trust region parameters" :
+    status == BAD_SCALING          ? "Bad scaling factor(s)" :
+    status == ROUNDING_ERRORS      ? "Too much cancellation in a denominator" :
+    status == TOO_MANY_EVALUATIONS ? "Maximum number of function evaluations exceeded" :
+    status == STEP_FAILED          ? "Trust region step has failed to reduce quadratic approximation" :
+    status == BAD_ADDRESS          ? "Illegal null address" :
+    status == CORRUPTED            ? "Corrupted or misused workspace" :
+    "Unknown NEWUOA status: `Newuoa.Status($(status.code))"
+
+"""
+    ctx = Newuoa.Context(n; npt=2n+1, rhobeg, rhoend=$rho_reduction*rhobeg,
+                         maxeval=30n, verbose=0, scale=1.0, maximize=false)
+
+creates a new context for solving an optimization problem with NEWUOA.
+
+Properties:
+
+```julia
+ctx.n        # number of variables
+ctx.npt      # number of memorized variables
+ctx.rhobeg   # initial size of the trust region
+ctx.rhoend   # final size of the trust region
+ctx.scale    # scaling factors
+ctx.maxeval  # maximum number of objective function evaluations
+ctx.verbose  # verbosity level
+ctx.maximize # attempt to maximize objective function?
+ctx.status   # current algorithm status
+ctx.fbest    # best value of the objective function
+ctx.nevals   # number of evaluations of the objective function
+```
+
+"""
+mutable struct Context <: Powell.AbstractContext
+    n::Int
+    npt::Int
+    rhobeg::Cdouble
+    rhoend::Cdouble
+    maxeval::Int
+    verbose::Int
+    scale::Vector{Cdouble}
+    work::Vector{Cdouble}
+    status::Status
+    maximize::Bool
+    function Context(n::Integer;
+                     npt::Integer = 2*Int(n) + 1,
+                     rhobeg::Real,
+                     rhoend::Real = rho_reduction*rhobeg,
+                     maxeval::Integer = 30*Int(n),
+                     verbose::Integer = 0,
+                     scale::Union{Real,AbstractVector{<:Real}} = 1.0,
+                     maximize::Bool = false)
+        # Check settings and convert them to a proper type.
+        n = Powell.fix_n(n)
+        npt = Powell.fix_npt(npt, n)
+        rhobeg, rhoend = Powell.fix_rho_parameters(rhobeg, rhoend)
+        maxeval = Powell.fix_maxeval(maxeval)
+        verbose = Powell.fix_verbose(verbose)
+        scale isa Real || length(scale) == n || throw(DimensionMismatch(
+            "`scale` must be a scalar or a vector of $n reals"))
+
+        # Create instance.
+        ctx = new(n, npt, rhobeg, rhoend, maxeval, verbose,
+                  #= scale =# Powell.copy_or_fill!(Vector{Cdouble}(undef, n), scale),
+                  #= work  =# Vector{Cdouble}(undef, work_length(n, npt)),
+                  INITIAL_ITERATE, maximize)
+        return reset!(ctx)
     end
-    unsafe_string(ptr)
 end
 
-"""
-# Minimizing a function of many variables
+function Powell.configure!(ctx::Context;
+                           n::Integer = ctx.n,
+                           npt::Integer = ctx.npt,
+                           rhobeg::Real = ctx.rhobeg,
+                           rhoend::Real = ctx.rhoend,
+                           maxeval::Integer = ctx.maxeval,
+                           verbose::Integer = ctx.verbose,
+                           scale::Union{Real,DenseVector{<:Real}} = ctx.scale,
+                           maximize::Bool = ctx.maximize)
+    # Check settings and convert them to a proper type.
+    n = Powell.fix_n(n)
+    npt = Powell.fix_npt(npt, n)
+    rhobeg, rhoend = Powell.fix_rho_parameters(rhobeg, rhoend)
+    maxeval = Powell.fix_maxeval(maxeval)
+    verbose = Powell.fix_verbose(verbose)
+    scale isa Real || scale === ctx.scale || length(scale) == n || throw(DimensionMismatch(
+        "`scale` must be a scalar or a vector of $n reals"))
 
-Mike Powell's **NEWUOA** algorithm attempts to find the variables `x` which
-solve the problem:
+    # Set scaling factors.
+    Powell.set_scale!(ctx, scale, n)
 
-    min f(x)
+    # Resize work array.
+    resize!(getfield(ctx, :work), work_length(n, npt))
 
-where `x` is a vector of variables that has `n ≥ 2` components and `f(x)` is
-an objective function.  The algorithm employs quadratic approximations to the
-objective which interpolates the objective function at `m` points, the value
-`m = 2n + 1` being recommended.  The parameter `rho` controls the size of the
-trust region and it is reduced automatically from `rhobeg` to `rhoend` (such
-that `0 < rhoend ≤ rhobeg`).
-
-The in-place version of the algorithm is called as:
-
-    Newuoa.minimize!(f, x, rhobeg, rhoend) -> (status, x, fx)
-
-where `f` is the objective function, `x` is a vector with the initial and final
-variables, `rhobeg` and `rhoend` are the initial and final sizes of the trust
-region.  The result is a tuple of 3 values: `status` indicates whether the
-algorithm was successful, `x` is the final value of the variables and `fx =
-f(x)` is the objective function at `x`.  Normally, `status` should be
-`Newuoa.SUCCESS`; otherwise, `getreason(status)` yields a textual explanation
-about the failure.
-
-The method:
-
-    Newuoa.minimize(f, x0, rhobeg, rhoend) -> (status, x, fx)
-
-is identical to `Newuoa.minimize!` but does not modify the vector `x0` of
-initial variables.
-
-
-## Precision and scaling of variables
-
-Parameter `rhobeg` should be set to the typical size (in terms of Euclidean
-norm of the change of variables) of the region to explorate and `rhoend`
-should be set to the typical precision.  The proper scaling of the variables is
-important for the success of the algorithm and the optional `scale` keyword
-should be specified if the typical precision is not the same for all variables.
-If specified, `scale` is an array of strictly nonnegative values and of same
-size as the variables `x`, such that `scale[i]*rho` (with `rho` the trust
-region radius) is the size of the trust region for the `i`-th variable.  If
-keyword `scale` is not specified, a unit scaling for all the variables is
-assumed.
-
-
-## Keywords
-
-The following keywords are available:
-
-* `scale` specifies the typical magnitudes of the variables.  If specified, it
-  must have as many elements as `x`, all strictly positive.
-
-* `check` (`true` by default) specifies whether to throw an exception if the
-  algorithm is not fully successful.
-
-* `verbose` (`0` by default) set the amount of printing.
-
-* `maxeval` specifies the maximum number of calls to the objective function.
-  The default setting is `maxeval = 30n` with `n = length(x)` the number of
-  variables.
-
-* `npt` specifies the number of points to use for the quadratic approximation
-  of the objective function.  The default setting is the recommended value:
-  `npt = 2n + 1` with `n = length(x)` the number of variables.
-
-* `work` specifies a workspace to (re)use.  It must be a vector of double
-  precision floating-point values.  If it is too small, its size is
-  automatically adjusted (by calling [`resize!`](@ref)).  This keyword is
-  useful to avoid any new allocation (and garbage colection) when several
-  similar optimizations are to be performed.
-
-
-## References
-
-The algorithm is described in:
-
-* M.J.D. Powell, "The NEWUOA software for unconstrained minimization without
-  derivatives," in Large-Scale Nonlinear Optimization, editors G. Di Pillo and
-  M. Roma, Springer, pp. 255-297 (2006).
-
-"""
-minimize(args...; kwds...) = optimize(args...; maximize=false, kwds...)
-minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
-@doc @doc(minimize) minimize!
-
-"""
-
-    Newuoa.maximize(f, x0, rhobeg, rhoend) -> (status, x, fx)
-    Newuoa.maximize!(f, x, rhobeg, rhoend) -> (status, x, fx)
-
-are similar to `Newuoa.minimize` and `Newuoa.minimize!` respectively but
-solve the unconstrained maximization problem:
-
-    max f(x)
-
-"""
-maximize(args...; kwds...) = optimize(args...; maximize=true, kwds...)
-maximize!(args...; kwds...) = optimize!(args...; maximize=true, kwds...)
-@doc @doc(maximize) maximize!
-
-# `_wrklen(...)` yields the number of elements in NEWUOA workspace.
-_wrklen(n::Integer, npt::Integer) = _wrklen(Int(n), Int(npt))
-_wrklen(n::Int, npt::Int) = (npt + 13)*(npt + n) + div(3*n*(n + 3),2)
-_wrklen(x::AbstractVector{<:AbstractFloat}, npt::Integer) =
-    _wrklen(length(x), npt)
-function _wrklen(x::AbstractVector{<:AbstractFloat},
-                 scl::AbstractVector{<:AbstractFloat},
-                 npt::Integer)
-    return _wrklen(x, npt) + length(scl)
+    # Set other fields.
+    setfield!(ctx, :n,        n)
+    setfield!(ctx, :npt,      npt)
+    setfield!(ctx, :rhobeg,   rhobeg)
+    setfield!(ctx, :rhoend,   rhoend)
+    setfield!(ctx, :maxeval,  maxeval)
+    setfield!(ctx, :verbose,  verbose)
+    setfield!(ctx, :status,   INITIAL_ITERATE)
+    setfield!(ctx, :maximize, maximize)
+    return reset!(ctx)
 end
 
-# `_work(...)` yields a large enough workspace for NEWUOA.
-_work(x::AbstractVector{<:AbstractFloat}, npt::Integer) =
-    Vector{Cdouble}(undef, _wrklen(x, npt))
-function _work(x::AbstractVector{<:AbstractFloat},
-               scl::AbstractVector{<:AbstractFloat},
-               npt::Integer)
-    return Vector{Cdouble}(undef, _wrklen(x, scl, npt))
+function reset!(ctx::Context)
+    getfield(ctx, :work)[1] = NaN # ctx.fbest
+    getfield(ctx, :work)[2] = 0   # ctx.nevals
+    return ctx
 end
 
-# Wrapper for the objective function in NEWUOA, the actual objective function
-# is provided by the client data as a `jl_value_t*` pointer.
+Powell._getproperty(ctx::Context, ::Val{:fbest})    = getfield(ctx, :work)[1]
+Powell._getproperty(ctx::Context, ::Val{:nevals})   = getfield(ctx, :work)[2] |> Int
+Powell._getproperty(ctx::Context, ::Val{:n})        = getfield(ctx, :n)
+Powell._getproperty(ctx::Context, ::Val{:npt})      = getfield(ctx, :npt)
+Powell._getproperty(ctx::Context, ::Val{:rhobeg})   = getfield(ctx, :rhobeg)
+Powell._getproperty(ctx::Context, ::Val{:rhoend})   = getfield(ctx, :rhoend)
+Powell._getproperty(ctx::Context, ::Val{:scale})    = getfield(ctx, :scale)
+Powell._getproperty(ctx::Context, ::Val{:maxeval})  = getfield(ctx, :maxeval)
+Powell._getproperty(ctx::Context, ::Val{:verbose})  = getfield(ctx, :verbose)
+Powell._getproperty(ctx::Context, ::Val{:maximize}) = getfield(ctx, :maximize)
+Powell._getproperty(ctx::Context, ::Val{:status})   = getfield(ctx, :status)
+
+Base.propertynames(ctx::Context) = (
+    :fbest,
+    :lower,
+    :maxeval,
+    :maximize,
+    :n,
+    :nevals,
+    :npt,
+    :rhobeg,
+    :rhoend,
+    :scale,
+    :status,
+    :upper,
+    :verbose)
+
+function Powell.optimize!(ctx::Context, f::Function, x::DenseVector{Cdouble}; kwds...)
+    isempty(kwds) || configure!(ctx; kwds...)
+    length(x) == ctx.n || throw(DimensionMismatch("bad number of variables"))
+    GC.@preserve ctx begin
+        status = @ccall libnewuoa.newuoa_optimize(
+            ctx.n::Cptrdiff_t, ctx.npt::Cptrdiff_t, ctx.maximize::Cint,
+            _objfun_c[]::Ptr{Cvoid}, f::Any, x::Ptr{Cdouble},
+            Powell.unsafe_scale_pointer(ctx)::Ptr{Cdouble}, ctx.rhobeg::Cdouble,
+            ctx.rhoend::Cdouble, ctx.verbose::Cptrdiff_t, ctx.maxeval::Cptrdiff_t,
+            getfield(ctx, :work)::Ptr{Cdouble})::Status
+        setfield!(ctx, :status, status)
+    end
+    return ctx, x
+end
+
+# `work_length(n, npt)` yields the number of elements in NEWUOA workspace.
+function work_length(n::Integer, npt::Integer)
+    n = Int(n)
+    npt = Int(npt)
+    return (npt + 13)*(npt + n) + div(3*n*(n + 3), 2)
+end
+
+# Wrapper for the objective function in NEWUOA, the actual objective function is provided
+# by the client data as a `jl_value_t*` pointer.
 function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
     return Cdouble(f(x))
 end
 
-# With precompilation, `__init__()` carries on initializations that must occur
-# at runtime like `@cfunction` which returns a raw pointer.
+# With precompilation, `__init__()` carries on initializations that must occur at runtime
+# like `@cfunction` which returns a raw pointer.
 const _objfun_c = Ref{Ptr{Cvoid}}()
 function __init__()
-    _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (Cptrdiff_t, Ptr{Cdouble}, Ptr{Cvoid}))
+    _objfun_c[] = @cfunction(_objfun, Cdouble, (Cptrdiff_t, Ptr{Cdouble}, Ptr{Cvoid}))
 end
-
-"""
-The methods:
-
-    Newuoa.optimize(fc, x0, rhobeg, rhoend) -> (status, x, fx)
-    Newuoa.optimize!(fc, x, rhobeg, rhoend) -> (status, x, fx)
-
-are identical to `Newuoa.minimize` and `Newuoa.minimize!` respectively but have
-an additional `maximize` keyword which is `false` by default and which
-specifies whether to maximize the objective function; otherwise, the method
-attempts to minimize the objective function.
-
-"""
-optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0),
-              args...; kwds...)
-
-function optimize!(f::Function, x::DenseVector{Cdouble},
-                   rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble} = Cdouble[],
-                   maximize::Bool = false,
-                   npt::Integer = 2*length(x) + 1,
-                   check::Bool = true,
-                   verbose::Integer = 0,
-                   maxeval::Integer = 30*length(x),
-                   work::Vector{Cdouble} = _work(x, scale, npt))
-    n = length(x)
-    nscl = length(scale)
-    if nscl == 0
-        sclptr = Ptr{Cdouble}(0)
-    elseif nscl == n
-        sclptr = pointer(scale)
-    else
-        error("bad number of scaling factors")
-    end
-    grow!(work, _wrklen(x, scale, npt))
-    status = Status(ccall((:newuoa_optimize, libnewuoa), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
-                           Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
-                          n, npt, maximize, _objfun_c[], f, x, sclptr,
-                          rhobeg, rhoend, verbose, maxeval, work))
-    if check && status != SUCCESS
-        error(getreason(status))
-    end
-    return (status, x, work[1])
-end
-
-@doc @doc(optimize) optimize!
-
-# Basic version similar to the FORTRAN version.
-newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    newuoa!(f, copy(x0), args...; kwds...)
-
-function newuoa!(f::Function, x::DenseVector{Cdouble},
-                 rhobeg::Real, rhoend::Real;
-                 npt::Integer = 2*length(x) + 1,
-                 verbose::Integer = 0,
-                 maxeval::Integer = 30*length(x),
-                 check::Bool = true,
-                 work::Vector{Cdouble} = _work(x, npt))
-    n = length(x)
-    grow!(work, _wrklen(x, npt))
-    status = Status(ccall((:newuoa, libnewuoa), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
-                           Cptrdiff_t, Ptr{Cdouble}),
-                          n, npt, _objfun_c[], f, x, rhobeg, rhoend,
-                          verbose, maxeval, work))
-    if check && status != SUCCESS
-        error(getreason(status))
-    end
-    return (status, x, work[1])
-end
-
-"""
-
-```julia
-using OptimPack.Powell
-ctx = Newuoa.create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
-```
-
-creates a new reverse communication workspace for NEWUOA algorithm.  A typical
-usage is:
-
-```julia
-x = Array{Cdouble}(undef, n)
-x[...] = ... # initial solution
-ctx = Newuoa.Context(n, rhobeg, rhoend; verbose=1, maxeval=500)
-status = getstatus(ctx)
-while status == Newuoa.ITERATE
-    fx = ...       # compute function value at X
-    status = iterate(ctx, fx, x)
-end
-if status != Newuoa.SUCCESS
-    println("Something wrong occured in NEWUOA: ", getreason(status))
-end
-```
-
-""" Context
-
-# Context for reverse communication variant of NEWUOA.
-# Must be mutable to be finalized.
-mutable struct Context <: AbstractContext
-    ptr::Ptr{Cvoid}
-    n::Int
-    npt::Int
-    rhobeg::Cdouble
-    rhoend::Cdouble
-    verbose::Int
-    maxeval::Int
-    function Context(n::Integer, rhobeg::Real, rhoend::Real;
-                     npt::Integer = 2*length(x) + 1,
-                     verbose::Integer = 0,
-                     maxeval::Integer = 30*length(x))
-        ptr = ccall((:newuoa_create, libnewuoa), Ptr{Cvoid},
-                    (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
-                     Cptrdiff_t, Cptrdiff_t),
-                    n, npt, rhobeg, rhoend, verbose, maxeval)
-        ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
-                               ? "insufficient memory"
-                               : "invalid argument(s)")
-        return finalizer(ctx -> ccall((:newuoa_delete, libnewuoa), Cvoid,
-                                      (Ptr{Cvoid},), ctx.ptr),
-                         new(ptr, n, npt, rhobeg, rhoend, verbose, maxeval))
-    end
-end
-
-@deprecate create(args...; kwds...) Context(args...; kwds...)
-
-function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
-    length(x) == ctx.n || error("bad number of variables")
-    Status(ccall((:newuoa_iterate, libnewuoa), Cint,
-                       (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}),
-                       ctx.ptr, f, x))
-end
-
-restart(ctx::Context) =
-    Status(ccall((:newuoa_restart, libnewuoa), Cint, (Ptr{Cvoid},), ctx.ptr))
-
-getstatus(ctx::Context) =
-    Status(ccall((:newuoa_get_status, libnewuoa), Cint, (Ptr{Cvoid},), ctx.ptr))
-
-getncalls(ctx::Context) =
-    Int(ccall((:newuoa_get_nevals, libnewuoa), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
-
-getradius(ctx::Context) =
-    ccall((:newuoa_get_rho, libnewuoa), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 end # module Newuoa

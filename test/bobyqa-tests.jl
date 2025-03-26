@@ -1,7 +1,7 @@
 module BobyqaTests
 
-using Printf
-using OptimPack.Powell
+using Printf, Test
+using OptimPack.Bobyqa
 
 function runtests()
     # The test function.
@@ -48,11 +48,16 @@ function runtests()
                 x[2*j - 1] = cos(temp)
                 x[2*j]     = sin(temp)
             end
-            fx = bobyqa!(f, x, xl, xu, rhobeg, rhoend, npt=npt,
-                         verbose=2, maxeval=500000)[3]
+            status, _, fx = bobyqa!(f, x; lower=xl, upper=xu, rhobeg, rhoend, npt,
+                                    verbose=2, maxeval=500000)
             @printf("\n***** least function value: %.15e\n", fx)
+            @test issuccess(status)
+            @test status.code isa Integer
+            @test status.reason isa String
         end
     end
 end
+
+isinteractive() && runtests()
 
 end # module
