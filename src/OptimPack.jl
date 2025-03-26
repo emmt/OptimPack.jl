@@ -1,24 +1,42 @@
-#
-# OptimPack.jl --
-#
-# Julia wrapper for OptimPack.
-#
-#-------------------------------------------------------------------------------
-#
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
-#
-# Copyright (C) 2014-2020, Éric Thiébaut.
-#
+"""
 
+Package `OptimPack` provides numerical optimization methods.
+
+* Large scale optimization:
+  * `vmlmb`
+  * `spg2`
+  * `conjgrad`
+
+* Nelder & Mead *Simplex* method.
+
+* Derivative free Powell's methods:
+  * `newuoa`
+  * `bobyqa`
+  * `cobyla`
+
+* Brent's methods:
+  * `fmin` for minimizing a function of one variable.
+  * `fzero` for finding the root of a function of one variable.
+
+* `bradi` for finding the global minimum of a function of one variable.
+
+"""
 module OptimPack
 
 export
     fmin,
     fzero,
-    nlcg,
-    spg2,
-    vmlmb
+    # FIXME nlcg,
+    # FIXME spg2,
+    # FIXME vmlmb,
+
+    # Powell methods.
+    Cobyla, cobyla, cobyla!,
+    Bobyqa, bobyqa, bobyqa!,
+    Newuoa, newuoa, newuoa!,
+
+    # Re-export from `LinearAlgebra`.
+    issuccess
 
 using LinearAlgebra, Printf
 
@@ -43,21 +61,29 @@ import Base:
     setindex!,
     size
 
-import LinearAlgebra: dot
+import LinearAlgebra: issuccess
 
-_path_to_deps_jl = joinpath(@__DIR__, "..", "deps", "deps.jl")
-isfile(_path_to_deps_jl) ||
-    error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
-include(_path_to_deps_jl)
+# FIXME _path_to_deps_jl = joinpath(@__DIR__, "..", "deps", "deps.jl")
+# FIXME isfile(_path_to_deps_jl) ||
+# FIXME     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
+# FIXME include(_path_to_deps_jl)
 
-# Load pieces of code.
-include("bindings.jl")
+# FIXME # Load pieces of code.
+# FIXME include("bindings.jl")
+
 include("brent.jl")
-include("bradi.jl")
-include("powell.jl")
-include("spg2.jl")
-import .SPG: spg2
 import .Brent: fzero, fmin
+
+# FIXME include("spg2.jl")
+# FIXME import .SPG: spg2
+
+include("bradi.jl")
 @deprecate fmin_global BraDi.minimize
+
+include("powell.jl")
+import .Powell:
+    Cobyla, cobyla, cobyla!,
+    Bobyqa, bobyqa, bobyqa!,
+    Newuoa, newuoa, newuoa!
 
 end # module
