@@ -1,16 +1,22 @@
 name = "OptimPack"
 uuid = "04a3d532-ba69-5937-989a-472689bdb720"
-authors = ["Éric Thiébaut <https://github.com/emmt>"]
 version = "1.0.0"
+authors = ["Éric Thiébaut <https://github.com/emmt>"]
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Neutrals = "789cc80b-6f9a-47a7-8588-bb01047265c3"
 OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+TypeUtils = "c3b1956e-8857-4d84-9b79-890df85b1e67"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
-OptimPack_jll = "3.4.0"
-julia = "1.6"
+Neutrals = "0.3.4"
+OptimPack_jll = "3.3.1"
+TypeUtils = "1.12.0"
+Unitful = "1.25.1"
+julia = "1"
 
 [extras]
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"

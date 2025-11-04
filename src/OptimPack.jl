@@ -24,19 +24,23 @@ Package `OptimPack` provides numerical optimization methods.
 module OptimPack
 
 export
+    # Brent
+    fmax,
+    fmaxbrkt,
     fmin,
+    fminbrkt,
     fzero,
-    # FIXME nlcg,
-    # FIXME spg2,
-    # FIXME vmlmb,
-
-    # Powell methods.
-    Cobyla, cobyla, cobyla!,
-    Bobyqa, bobyqa, bobyqa!,
-    Newuoa, newuoa, newuoa!,
-
+    #nlcg,
+    #spg2,
+    #vmlmb,
+    #
+    ## Powell methods.
+    #Cobyla, cobyla, cobyla!,
+    #Bobyqa, bobyqa, bobyqa!,
+    #Newuoa, newuoa, newuoa!,
     # Re-export from `LinearAlgebra`.
     issuccess
+
 
 using LinearAlgebra, Printf
 
@@ -71,19 +75,19 @@ import LinearAlgebra: issuccess
 # FIXME # Load pieces of code.
 # FIXME include("bindings.jl")
 
-include("brent.jl")
-import .Brent: fzero, fmin
+include("Brent.jl")
+import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero
 
 # FIXME include("spg2.jl")
 # FIXME import .SPG: spg2
 
-include("bradi.jl")
-@deprecate fmin_global BraDi.minimize
-
-include("powell.jl")
-import .Powell:
-    Cobyla, cobyla, cobyla!,
-    Bobyqa, bobyqa, bobyqa!,
-    Newuoa, newuoa, newuoa!
+#include("bradi.jl")
+#@deprecate fmin_global BraDi.minimize
+#
+#include("powell.jl")
+#import .Powell:
+#    Cobyla, cobyla, cobyla!,
+#    Bobyqa, bobyqa, bobyqa!,
+#    Newuoa, newuoa, newuoa!
 
 end # module

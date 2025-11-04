@@ -1,5 +1,17 @@
 # User visible changes in `OptimPack`
 
+## Unreleased
+
+# Breaking changes
+
+- `fzero`, `fmin`, and `fmax` return a 5-tuple: `(x, fx, lo, hi, nf)` with `x` the
+  (approximate) solution, `fx = f(x)`, `lo` and `hi` the lower and upper bounds for the
+  solution, and `nf` the number of calls to `f`.
+
+# Added
+
+- `fminbrkt` and `fmaxbrkt` to search for a local extremum in a bracketed interval.
+
 - `OptimPack` now depends on the artifact `OptimPack_jll`. As a result, installation is
   easier and following the evolution of the C library should be transparent.
 
@@ -16,11 +28,9 @@
 ## Version 1.1.0
 
 - Optional argument `mem` is now a keyword in methods `vmlmb` and `vmlmb!`.
-- Method `fmin_global` has been deprecated in favor of
-  `OptimPack.BraDi.minimize`.
+- Method `fmin_global` has been deprecated in favor of `OptimPack.BraDi.minimize`.
 - By default, installation is done with precompiled libraries.
-- Compatible with OptimPack 3.1 whose functionalities have been split in 3
-  libraries.
+- Compatible with OptimPack 3.1 whose functionalities have been split in 3 libraries.
 
 ## Version 1.0.0
 
