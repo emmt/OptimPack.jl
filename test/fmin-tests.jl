@@ -1,22 +1,16 @@
 """
-    FmnTests
+    FminTests
 
 Tests for local minimization by Brent's `fmin`, for local maximization by `fmax`, and for
 global optimization by `BraDi` and `Step` methods. Typical usage:
 
-    FzeroTests.runtest(T::Type...; verb=false)
+    FminTests.runtest(T::Type...; verb=false)
 
 """
-#
-# fmin-tests.jl -
-#
-# Test univariate optimization.
-#
 module FminTests
 
 using Test, Printf, Unitful, TypeUtils
-using OptimPack.Brent
-#using OptimPack: BraDi, Step
+using OptimPack
 
 # Number of function evaluations.
 const nevals = Ref{Int}(0)
@@ -45,19 +39,18 @@ Base.range(p::Extremum) = range(start = p.a, stop = p.b, length = p.n)
 """
     obj = TestFunc(name, func, args...; periodic=false)
 
-yields an callable object that wraps objective function `func` to be tested for
-univariate optimization. Arguments `args...` are any number of instances of
-`Extremum`.
+yields an callable object that wraps objective function `func` to be tested for univariate
+optimization. Arguments `args...` are any number of instances of `Extremum`.
 
-The wrapper is intended to bundle the settings for testing the optimization of
-the function and may be called as a function to evaluate the objective
-function: `obj(x)` yields `func(x)`.
+The wrapper is intended to bundle the settings for testing the optimization of the function
+and may be called as a function to evaluate the objective function: `obj(x)` yields
+`func(x)`.
 
-To improve type-stability and correctly represent the behavior of the objective
-function at a given numerical precision, `func(x)` must be written so as to
-perform computations with the same floating-point type as `x`. This is tested
-to some extend. Also when the objective function is called via the wrapper, the
-global variable storing the number of calls is automatically incremented.
+To improve type-stability and correctly represent the behavior of the objective function at
+a given numerical precision, `func(x)` must be written so as to perform computations with
+the same floating-point type as `x`. This is tested to some extend. Also when the objective
+function is called via the wrapper, the global variable `FminTests.nevals[]` storing the
+number of calls is automatically incremented.
 
 """
 struct TestFunc{F}
@@ -88,13 +81,6 @@ macro TestFunc(name::Symbol, args...)
     code = :(const $name = TestFunc($(string(name)), $(args...); $(kwds...)))
     return esc(code)
 end
-
-#for func in (:fmin, :fmax)
-#
-#    @eval Brent.$func(p::TestFunc{F,Tx,Tf}, a::Number, b::Number; kwds...) where {F,Tx,Tf} =
-#        $func(float(promote_type(real_type(Tx), real_type(Tf))), p, a, b; kwds...)
-#
-#end
 
 # Brent's test functions (see Brent's book p. 104).  Brent's 2nd test function
 # is a simple parabola whose minimum is at xm=0, this is good to check for
@@ -342,8 +328,9 @@ function relative_precision(::Type{T₁}, ::Type{T₂}) where {T₁<:AbstractFlo
     end
 end
 
-function runtests(Ts::Type{<:AbstractFloat}...; verb::Bool=false)
-    algs = (:fmin, :fmax)
+function runtests(Ts::Type{<:AbstractFloat}...;
+                  verb::Bool=false,
+                  algs::Tuple{Vararg{Symbol}} = (:fmin, :fmax, :bradi,))
     if verb
         println("Test function                   x                   f(x)    ncalls Type    ")
         println("-------------- --------------------------------- ---------- ------ --------")
@@ -435,7 +422,7 @@ function runtests(Ts::Type{<:AbstractFloat}...; verb::Bool=false)
                 @test fx ≈ fm atol=ftol rtol=0
                 @test  x ≈ xm atol=xtol rtol=0
                 @test lo ≤ x ≤ hi
-                if p.type === :local_min || p.type === :global_min
+                if p.type ∈ (:local_min, :global_min)
                     @test fx ≤ min(f(lo), f(hi))
                 else
                     @test fx ≥ max(f(lo), f(hi))

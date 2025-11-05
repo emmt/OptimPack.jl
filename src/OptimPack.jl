@@ -24,12 +24,16 @@ Package `OptimPack` provides numerical optimization methods.
 module OptimPack
 
 export
-    # Brent
+    # Bracket then Dig.
+    BraDi,
+
+    # Brent methods.
     fmax,
     fmaxbrkt,
     fmin,
     fminbrkt,
     fzero,
+
     #nlcg,
     #spg2,
     #vmlmb,
@@ -78,12 +82,12 @@ import LinearAlgebra: issuccess
 include("Brent.jl")
 import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero
 
+include("BraDi.jl")
+
 # FIXME include("spg2.jl")
 # FIXME import .SPG: spg2
 
-#include("bradi.jl")
-#@deprecate fmin_global BraDi.minimize
-#
+
 #include("powell.jl")
 #import .Powell:
 #    Cobyla, cobyla, cobyla!,
