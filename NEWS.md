@@ -4,13 +4,15 @@
 
 # Breaking changes
 
-- `fzero`, `fmin`, and `fmax` return a 5-tuple: `(x, fx, lo, hi, nf)` with `x` the
-  (approximate) solution, `fx = f(x)`, `lo` and `hi` the lower and upper bounds for the
-  solution, and `nf` the number of calls to `f`.
+- `fzero`, `fmin`, and `fmax` return a 5-tuple: `(x, fx, lo, hi, nf)` where `x` is the
+  (approximate) solution, `fx = f(x)`, `lo` and `hi` are lower and upper bounds for the
+  solution, and `nf` is the number of calls to `f`.
 
 # Added
 
 - `fminbrkt` and `fmaxbrkt` to search for a local extremum in a bracketed interval.
+
+- Aliases `Brent.maximize(f, a, b)` and `Brent.minimize(f, a, b)` to `fmin` and `fmax`.
 
 - `BraDi.maximize(f, x)` and `BraDi.minimize(f, x)` can takes the sample numbers `x` as a
   tuple or as a variable length list of arguments. Hence, `BraDi.maximize(f, a, b)` and

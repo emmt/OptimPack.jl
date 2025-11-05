@@ -1,10 +1,11 @@
 """
+    OptimPack.Brent
 
-Module `Brent` provides methods to find a local root or a local minimum of an univariate
+This module provides methods to find a local root or a local minimum of an univariate
 function by Brent's methods described in:
 
-> Richard Brent, "Algorithms for minimization without derivatives," Prentice-Hall, inc.
-> (1973).
+* Richard Brent, *"Algorithms for minimization without derivatives,"* Prentice-Hall, inc."
+  (1973).
 
 Exported symbols:
 
@@ -18,6 +19,12 @@ Exported symbols:
 
 * `fminbrkt` to find a local minimum of an univariate function in a bracketing interval.
 
+Non-exported public symbols:
+
+* `Brent.maximize` is an alias to `fmax`.
+
+* `Brent.minimize` is an alias to `fmin`.
+
 """
 module Brent
 
@@ -29,7 +36,7 @@ export
     fzero
 
 using TypeUtils: @public
-@public tolerances
+@public maximize, minimize, tolerances
 
 using Neutrals
 using TypeUtils
@@ -241,7 +248,8 @@ function fzero_search(f, a::Tx, fa::Tf, b::Tx, fb::Tf, atol::Tx, rtol::T,
 end
 
 """
-    Brent.fmin([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
+    Brent.minimize([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
+    fmin([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
 
 Apply Brent's algorithm to find a local minimum of the function `f(x)` in the interval
 `[a,b]`.
@@ -286,6 +294,10 @@ modified translation of the Algol 60 procedure LOCALMIN given in:
   (1973).
 
 """
+ function fmin end
+
+const minimize = fmin
+
 function fmin(f, a::Number, b::Number, args::Number...; kwds...)
     return fmin(concrete_precision(a, b, args...), f, a, b, args...; kwds...)
 end
@@ -553,12 +565,16 @@ function fmin_search(f, a::Tx, b::Tx,
 end
 
 """
+    Brent.maximize([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
     fmax([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
 
 Apply Brent's algorithm to find a local maximum of the function `f(x)` in the interval
 `[a,b]`. See [`fmin`](@ref) for details.
 
-"""
+""" function fmax end
+
+const maximize = fmax
+
 function fmax(f, a::Number, b::Number, args::Number...; kwds...)
     return fmax(concrete_precision(a, b, args...), f, a, b, args...; kwds...)
 end
