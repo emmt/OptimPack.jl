@@ -332,11 +332,11 @@ function runtests(Ts::Type{<:AbstractFloat}...;
                   verb::Bool=false,
                   algs::Tuple{Vararg{Symbol}} = (:fmin, :fmax, :bradi,))
     if verb
-        println("Test function                   x                   f(x)    ncalls Type    ")
-        println("-------------- --------------------------------- ---------- ------ --------")
+        println("Test function                   x                   f(x)    Calls Algorithm/Type    ")
+        println("-------------- --------------------------------- ---------- ----- --------------")
     end
     @testset "Extremum of univariate function" begin
-        @testset "f=$(f.name), T=$T" for f in test_funcs, T in Ts
+        @testset "f=$(f.name), T=$T, alg=$alg" for f in test_funcs, alg in algs, T in Ts
             for p in f.list
 
                 # Bounds and solution for this extremum.
@@ -364,54 +364,58 @@ function runtests(Ts::Type{<:AbstractFloat}...;
                 end
 
                 nevals[] = 0
-                if p.type === :local_min && :fmin ∈ algs
+                if p.type === :local_min && alg === :fmin
                     x, fx, lo, hi, nf = if precision === T
                         @inferred fmin(f, a, b)
                     else
                         @inferred fmin(T, f, a, b; rtol, atol)
                     end
-                elseif p.type === :local_max && :fmax ∈ algs
+                elseif p.type === :local_min && alg === :bradi
+                    x, fx, lo, hi, nf = if precision === T
+                        @inferred BraDi.minimize(f, a, b)
+                    else
+                        @inferred BraDi.minimize(T, f, a, b; rtol, atol)
+                    end
+                elseif p.type === :local_max && alg === :fmax
                     x, fx, lo, hi, nf = if precision === T
                         @inferred fmax(f, a, b)
                     else
                         @inferred fmax(T, f, a, b; rtol, atol)
                     end
-                elseif p.type === :global_min && (:bradi ∈ algs || :step ∈ algs)
-                    if :bradi ∈ algs
-                        r = range(p)
-                        isempty(r) && continue
-                        periodic = f.periodic
-                        x, fx, lo, hi, nf = if precision === T
-                            @inferred BraDi.minimize(f, r; periodic=periodic)
-                        else
-                            @inferred BraDi.minimize(T, f, r; periodic=periodic,
-                                                     atol=atol, rtol=rtol)
-                        end
+                elseif p.type === :local_max && alg === :bradi
+                    x, fx, lo, hi, nf = if precision === T
+                        @inferred BraDi.maximize(f, a, b)
                     else
-                        continue
+                        @inferred BraDi.maximize(T, f, a, b; rtol, atol)
                     end
-                elseif p.type === :global_max && (:bradi ∈ algs || :step ∈ algs)
-                    if :bradi ∈ algs
-                        r = range(p)
-                        isempty(r) && continue
-                        periodic = f.periodic
-                        x, fx, lo, hi, nf = if precision === T
-                            @inferred BraDi.maximize(f, r; periodic=periodic)
-                        else
-                            @inferred BraDi.maximize(T, f, r; periodic=periodic,
-                                                     atol=atol, rtol=rtol)
-                        end
+                elseif p.type === :global_min && alg === :bradi
+                    r = range(p)
+                    isempty(r) && continue
+                    periodic = f.periodic
+                    x, fx, lo, hi, nf = if precision === T
+                        @inferred BraDi.minimize(f, r; periodic=periodic)
                     else
-                        continue
+                        @inferred BraDi.minimize(T, f, r; periodic=periodic,
+                                                 atol=atol, rtol=rtol)
+                    end
+                elseif p.type === :global_max && alg === :bradi
+                    r = range(p)
+                    isempty(r) && continue
+                    periodic = f.periodic
+                    x, fx, lo, hi, nf = if precision === T
+                        @inferred BraDi.maximize(f, r; periodic=periodic)
+                    else
+                        @inferred BraDi.maximize(T, f, r; periodic=periodic,
+                                                 atol=atol, rtol=rtol)
                     end
                 else
                     continue
                 end
                 if verb
-                    @printf("%-14s %22.15g ± %8.3g %10.3e %6d %-8s\n",
+                    @printf("%-14s %22.15g ± %8.3g %10.3e %5d %s/%s\n",
                             f.name, adapt_precision(Float64, x),
                             round_value(adapt_precision(Float64, abs(x - xm))),
-                            adapt_precision(Float64, fx), nf, repr(T))
+                            adapt_precision(Float64, fx), nf, string(alg), repr(T))
                 end
                 @test nf == nevals[]
                 @test get_precision(x) === T

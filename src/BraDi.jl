@@ -17,15 +17,18 @@ using TypeUtils: @public
 using TypeUtils
 using ..Brent: Negate, fminbrkt, throw_bad_argument, concrete_precision
 
+const Points{T} = Union{AbstractVector{T},Tuple{Vararg{T}}}
+
 """
+    BraDi.maximize([T,] f, x...; kwds...) -> (xm, fm, lo, hi, nf)
     BraDi.maximize([T,] f, x; kwds...) -> (xm, fm, lo, hi, nf)
 
 Find the global maximum of the univariate function `f` over the interval
-`[first(x),last(x)]` with `x` an abstract vector of values in strict monotonic order such
-that it can be assumed that no more than a single maximum lies in any sub-interval
-`[x[i],x[i+2]]`. The result is a 5-tuple with `xm` the position of the global maximum, `fm =
-f(xm)`, `lo` and `hi` the lower and upper bounds for the exact solution, and `nf` the number
-of function calls.
+`[first(x),last(x)]` with `x` a list of numbers in strict monotonic order such that it can
+be assumed that no more than a single maximum lies in any sub-interval `[x[i],x[i+2]]`. The
+result is a 5-tuple with `xm` the position of the global maximum, `fm = f(xm)`, `lo` and
+`hi` the lower and upper bounds for the exact solution, and `nf` the number of function
+calls.
 
 Optional argument `T` is the floating-point type used for the computations. If unspecified,
 `T` is inferred from the type of the elements of `X`.
@@ -54,19 +57,25 @@ See also [`OptimPack.BraDi.minimize`](@ref), [`OptimPack.Brent.fmax`](@ref), and
 [`OptimPack.Step.minimize`](@ref).
 
 """
-maximize(f, x::AbstractVector{<:Number}; kdws...) =
+maximize(f, x::Number...; kdws...) = maximize(f, x; kdws...)
+
+maximize(f, x::Points{<:Number}; kdws...) =
     maximize(concrete_precision(eltype(x)), f, x; kdws...)
 
-function maximize(::Type{T}, f, x::AbstractVector{<:Number}; kdws...) where {T<:AbstractFloat}
+maximize(::Type{T}, f, x::Number...; kdws...) where {T<:AbstractFloat} =
+    maximize(T, f, x; kdws...)
+
+function maximize(::Type{T}, f, x::Points{<:Number}; kdws...) where {T<:AbstractFloat}
     (xm, fm, lo, hi, nf) = minimize(T, Negate(f), x; kdws...)
     return (xm, -fm, lo, hi, nf)
 end
 
 """
+    BraDi.minimize([T,] f, x...; kwds...) -> (xm, fm, lo, hi, nf)
     BraDi.minimize([T,] f, x; kwds...) -> (xm, fm, lo, hi, nf)
 
 Find the global minimum of the univariate function `f` over the interval
-`[first(x),last(x)]` with `x` an abstract vector of values in strict monotonic order such
+`[first(x),last(x)]` with `x` a list of numbers in strict monotonic order such
 that it can be assumed that no more than a single minimum lies in any sub-interval
 `[x[i],x[i+2]]`. The result is a 5-tuple with `xm` the position of the global minimum, `fm =
 f(xm)`, `lo` and `hi` the lower and upper bounds for the exact solution, and `nf` the number
@@ -99,11 +108,15 @@ See also [`OptimPack.BraDi.maximize`](@ref), [`OptimPack.Brent.fmin`](@ref), and
 [`OptimPack.Step.minimize`](@ref).
 
 """
-minimize(f, x::AbstractVector{<:Number}; kdws...) =
+minimize(f, x::Number...; kdws...) = minimize(f, x; kdws...)
+
+minimize(f, x::Points{<:Number}; kdws...) =
     minimize(concrete_precision(eltype(x)), f, x; kdws...)
 
-function minimize(::Type{T}, f, x::AbstractVector{<:Number};
-                  periodic::Bool = false,
+minimize(::Type{T}, f, x::Number...; kdws...) where {T<:AbstractFloat} =
+    minimize(T, f, x; kdws...)
+
+function minimize(::Type{T}, f, x::Points{<:Number}; periodic::Bool = false,
                   kwds...) where {T<:AbstractFloat}
     # Check that x is in strict increasing or decreasing order and that enough points are
     # given.
@@ -112,10 +125,21 @@ function minimize(::Type{T}, f, x::AbstractVector{<:Number};
     length(x) ≥ (periodic ? 3 : 2) || throw_bad_argument(
         "insufficient number of values in `x`")
 
+    # Dispatch on `promote_eltype(x)` in case it is not inferable.
+    return _minimize(T, f, promote_eltype(x), x; periodic=periodic, kwds...)
+end
+
+function _minimize(::Type{T}, f, ::Type{Tx}, x::Points{<:Number};
+                   kwds...) where {Tx, T<:AbstractFloat}
+    # Dispatch on `convert_real_type(T, Tx)` in case it is not inferable.
+    return __minimize(T, f, convert_real_type(T, Tx), x; kwds...)
+end
+
+function __minimize(::Type{T}, f, ::Type{Tx}, x::Points{<:Number};
+                    periodic::Bool = false, kwds...) where {Tx, T<:AbstractFloat}
     # Extract first point(s) and compute corresponding function value(s) to determine types
     # and then call private method with converted arguments.
     start, stop = firstindex(x), lastindex(x)
-    Tx = convert_real_type(T, eltype(x))
     x₁, xₙ = convert(Tx, x[start]), convert(Tx, x[stop])
     a, b = minmax(x₁, xₙ)
     f₁ = convert_real_type(T, f(x₁))
@@ -183,25 +207,47 @@ function minimize(::Type{T}, f, x::AbstractVector{<:Number};
     return (xₒₚₜ, fₒₚₜ, lₒₚₜ, uₒₚₜ, eval)
 end
 
+# FIXME: This is not the same as `TypeUtils.promote_eltype(x)`.
+function promote_eltype(x) # an iterable or its type
+    if Base.IteratorEltype(x) === Base.HasEltype()
+        T = eltype(x)
+        isconcretetype(T) && return T
+    end
+    x isa DataType && error("cannot determine promoted element type for $x")
+    return mapreduce(typeof, promote_type, x)
+end
+
+# Deal with tuples or types of tuples.
+promote_eltype(x::Tuple) = promote_eltype(typeof(x))
+
+# Easy, an empty tuple.
+promote_eltype(::Type{<:T}) where {T<:Tuple{}} = Union{}
+
+# Easy, an n-tuple.
+promote_eltype(::Type{<:T}) where {S,T<:Tuple{S,Vararg{S}}} = S
+
+# More difficult, a tuple, but not an n-tuple.
+@generated promote_eltype(::Type{T}) where {T<:Tuple{Any,Vararg{Any}}} =
+    reduce(promote_type, T.parameters)
+
 """
     BraDi.ismonotonic(x) -> bool
 
-Return whether the elements of vector `x` are in strictly increasing or strictly decreasing
-order.
+Return whether the elements of `x` are in strictly increasing or strictly decreasing order.
 
 """
 ismonotonic(x::AbstractRange) = !iszero(step(x))
 
-function ismonotonic(x::AbstractVector)
+function ismonotonic(x::Points)
     flag = true
     start, stop = firstindex(x), lastindex(x)
     if start < stop
         if x[start] < x[stop]
-            @inbounds @simd for i in start:stop-1
+            @inbounds for i in start:stop-1
                 flag &= (x[i] < x[i+1])
             end
         elseif x[start] > x[stop]
-            @inbounds @simd for i in start:stop-1
+            @inbounds for i in start:stop-1
                 flag &= (x[i] > x[i+1])
             end
         else
