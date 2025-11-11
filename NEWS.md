@@ -8,6 +8,10 @@
   (approximate) solution, `fx = f(x)`, `lo` and `hi` are lower and upper bounds for the
   solution, and `nf` is the number of calls to `f`.
 
+- The API of Powell's methods `cobyla`, `bobyqa`, and `newuoa` has changed to be more
+  similar to other methods of the package. These methods require to load `OptimPack_jll` (so
+  that `OptimPack` only weakly depends on this artifact).
+
 # Added
 
 - `fminbrkt` and `fmaxbrkt` to search for a local extremum in a bracketed interval.

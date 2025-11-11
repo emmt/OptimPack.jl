@@ -1,49 +1,51 @@
 module OptimPackTests
 
 using OptimPack
-using Test, Printf
+using Test, Printf, Neutrals
 
-VERBOSE = true
-
-function banner(str::AbstractString)
-    len = 75
-    line = repeat('*', len)
-    println()
-    println(line)
-    println("*** ", str, " ", repeat('*', max(3, len - length(str) - 5)))
-    println(line)
-end
-
+if false
 include("brent-tests.jl")
 include("rosenbrock.jl")
 include("spg2-tests.jl")
+end
 
-if true
+@testset "COBYLA" begin
     include("cobyla-tests.jl")
-    banner("Standard tests")
-    CobylaTests.runtests()
-    banner("Tests with scale=0.7")
-    CobylaTests.runtests(scale=0.7)
-    banner("Tests with reverse-communication")
-    CobylaTests.runtests(revcom=true)
+    @testset "scale=$scale, revcom=$revcom, inplace=$inplace" for (
+        scale, inplace, revcom) in ((  𝟙, false, false),
+                                    (0.5, false, false),
+                                    (  𝟙, true,  false),
+                                    (3.0, true,  false),
+                                    (  𝟙, false, true),
+                                    (0.1, false, true))
+        CobylaTests.runtests(; verbose=0, scale=scale, inplace=inplace, revcom=revcom)
+    end
 end
 
-if true
+@testset "NEWUOA" begin
     include("newuoa-tests.jl")
-    banner("Standard NEWUOA tests")
-    NewuoaTests.runtests()
-    banner("NEWUOA tests with scale=0.7")
-    NewuoaTests.runtests(scale=0.7)
-    banner("NEWUOA tests with reverse-communication")
-    NewuoaTests.runtests(revcom=true)
+    @testset "scale=$scale, revcom=$revcom, inplace=$inplace" for (
+        scale, inplace, revcom) in ((  𝟙, false, false),
+                                    (0.5, false, false),
+                                    (  𝟙, true,  false),
+                                    (3.0, true,  false),
+                                    (  𝟙, false, true),
+                                    (0.1, false, true))
+        NewuoaTests.runtests(; verbose=0, scale=scale, inplace=inplace, revcom=revcom)
+    end
 end
 
-if true
+@testset "BOBYQA" begin
     include("bobyqa-tests.jl")
-    banner("Standard BOBYQA tests")
-    BobyqaTests.runtests()
+    @testset "scale=$scale, inplace=$inplace" for (
+        scale, inplace) in ((  𝟙, false),
+                            (0.5, false),
+                            (  𝟙, true),
+                            (3.0, true))
+        BobyqaTests.runtests(; verbose=0, scale=scale, inplace=inplace)
+    end
 end
 
-end # module
+end # module OptimPackTests
 
 nothing

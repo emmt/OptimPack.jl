@@ -49,17 +49,25 @@ export
     fminbrkt,
     fzero,
 
+    # Spectral Projection Gradient.
+    SPG,
+    spg,
+    spg!,
+
     #nlcg,
-    #spg2,
     #vmlmb,
     #
     ## Powell methods.
-    #Cobyla, cobyla, cobyla!,
-    #Bobyqa, bobyqa, bobyqa!,
-    #Newuoa, newuoa, newuoa!,
+    Cobyla, cobyla, cobyla!,
+    Bobyqa, bobyqa, bobyqa!,
+    Newuoa, newuoa, newuoa!,
+
     # Re-export from `LinearAlgebra`.
     issuccess
 
+# Public but not exported API.
+using TypeUtils: @public
+@public configure! solve! restart! iterate!
 
 using LinearAlgebra, Printf
 
@@ -73,13 +81,11 @@ using Base:
 
 import LinearAlgebra: issuccess
 
-# FIXME _path_to_deps_jl = joinpath(@__DIR__, "..", "deps", "deps.jl")
-# FIXME isfile(_path_to_deps_jl) ||
-# FIXME     error("OptimPack not properly installed.  Please run Pkg.build(\"OptimPack\")")
-# FIXME include(_path_to_deps_jl)
+if !isdefined(Base, :get_extension)
+    using Requires
+end
 
-# FIXME # Load pieces of code.
-# FIXME include("bindings.jl")
+include("common.jl")
 
 include("Brent.jl")
 import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero
@@ -87,14 +93,21 @@ import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero
 include("BraDi.jl")
 include("Step.jl")
 
-# FIXME include("spg2.jl")
-# FIXME import .SPG: spg2
+include("SPG.jl")
+import .SPG: spg, spg!
 
+include("Powell.jl")
+import .Powell:
+    Cobyla, cobyla, cobyla!,
+    Bobyqa, bobyqa, bobyqa!,
+    Newuoa, newuoa, newuoa!
 
-#include("powell.jl")
-#import .Powell:
-#    Cobyla, cobyla, cobyla!,
-#    Bobyqa, bobyqa, bobyqa!,
-#    Newuoa, newuoa, newuoa!
+function __init__()
+    @static if !isdefined(Base, :get_extension)
+        # Extend methods when other packages are loaded.
+        @require OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c" include(
+            "../ext/OptimPackOptimPack_jll.jl")
+    end
+end
 
 end # module

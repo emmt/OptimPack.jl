@@ -1,18 +1,30 @@
+"""
+
+Tests for COBYLA. Usage:
+
+    CobylaTests.runtests(; scale=𝟙, verbose=1, maxevals::Integer=500000,
+                           inplace::Bool=false, recom=false)
+
+"""
 module CobylaTests
 
-using Printf, Test
+using Printf, Test, Neutrals
 using OptimPack.Cobyla
+using OptimPack: configure!, restart!, iterate!
 
-function runtests(;revcom::Bool = false, scale::Real = 1.0)
-    # Beware that order of operations may affect the result (whithin
-    # rounding errors).  I have tried to keep the same ordering as F2C
-    # which takes care of that, in particular when converting expressions
-    # involving powers.
+const evals = Ref{Int}()
+
+# NOTE Default settings are to reproduce the output of the original software.
+function runtests(; scale::Real=𝟙, verbose::Integer=1, maxevals::Integer=2000,
+                  inplace::Bool=false, revcom::Bool=false)
+    # Beware that order of operations may affect the result (within rounding errors). I have
+    # tried to keep the same ordering as F2C which takes care of that, in particular when
+    # converting expressions involving powers.
     prt(s) = println("\n       "*s)
     for nprob in 1:10
         if nprob == 1
             # Minimization of a simple quadratic function of two variables.
-            prt("Output from test problem 1 (Simple quadratic)")
+            verbose > 0 && prt("Output from test problem 1 (Simple quadratic)")
             n = 2
             m = 0
             xopt = Array{Cdouble}(undef, n)
@@ -22,11 +34,12 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r1 = x[1] + 1.0
                 r2 = x[2]
                 fc = 10.0*(r1*r1) + (r2*r2)
+                evals[] += 1
                 return fc
             end
         elseif nprob == 2
             # Easy two dimensional minimization in unit circle.
-            prt("Output from test problem 2 (2D unit circle calculation)")
+            verbose > 0 && prt("Output from test problem 2 (2D unit circle calculation)")
             n = 2
             m = 1
             xopt = Array{Cdouble}(undef, n)
@@ -35,11 +48,12 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = x[1]*x[2]
                 con[1] = 1.0 - x[1]*x[1] - x[2]*x[2]
+                evals[] += 1
                 return fc
             end
         elseif nprob == 3
             # Easy three dimensional minimization in ellipsoid.
-            prt("Output from test problem 3 (3D ellipsoid calculation)")
+            verbose > 0 && prt("Output from test problem 3 (3D ellipsoid calculation)")
             n = 3
             m = 1
             xopt = Array{Cdouble}(undef, n)
@@ -49,11 +63,12 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = x[1]*x[2]*x[3]
                 con[1] = 1.0 - (x[1]*x[1]) - 2.0*(x[2]*x[2]) - 3.0*(x[3]*x[3])
+                evals[] += 1
                 return fc
             end
         elseif nprob == 4
             # Weak version of Rosenbrock's problem.
-            prt("Output from test problem 4 (Weak Rosenbrock)")
+            verbose > 0 && prt("Output from test problem 4 (Weak Rosenbrock)")
             n = 2
             m = 0
             xopt = Array{Cdouble}(undef, n)
@@ -64,11 +79,12 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r1 = r2*r2 - x[2]
                 r3 = x[1] + 1.0
                 fc = r1*r1 + r3*r3
+                evals[] += 1
                 return fc
             end
         elseif nprob == 5
             # Intermediate version of Rosenbrock's problem.
-            prt("Output from test problem 5 (Intermediate Rosenbrock)")
+            verbose > 0 && prt("Output from test problem 5 (Intermediate Rosenbrock)")
             n = 2
             m = 0
             xopt = Array{Cdouble}(undef, n)
@@ -79,12 +95,13 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r1 = r2*r2 - x[2]
                 r3 = x[1] + 1.0
                 fc = r1*r1*10.0 + r3*r3
+                evals[] += 1
                 return fc
             end
         elseif nprob == 6
-            # This problem is taken from Fletcher's book Practical Methods
-            # of Optimization and has the equation number (9.1.15).
-            prt("Output from test problem 6 (Equation (9.1.15) in Fletcher)")
+            # This problem is taken from Fletcher's book Practical Methods of Optimization
+            # and has the equation number (9.1.15).
+            verbose > 0 && prt("Output from test problem 6 (Equation (9.1.15) in Fletcher)")
             n = 2
             m = 2
             xopt = Array{Cdouble}(undef, n)
@@ -97,12 +114,13 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r1 = x[1]
                 r2 = x[2]
                 con[2] = 1.0 - r1*r1 - r2*r2
+                evals[] += 1
                 return fc
             end
         elseif nprob == 7
-            # This problem is taken from Fletcher's book Practical Methods
-            # of Optimization and has the equation number (14.4.2).
-            prt("Output from test problem 7 (Equation (14.4.2) in Fletcher)")
+            # This problem is taken from Fletcher's book Practical Methods of Optimization
+            # and has the equation number (14.4.2).
+            verbose > 0 && prt("Output from test problem 7 (Equation (14.4.2) in Fletcher)")
             n = 3
             m = 3
             xopt = Array{Cdouble}(undef, n)
@@ -116,13 +134,14 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r2 = x[2]
                 con[2] = x[3] - r1*r1 - r2*r2 - x[2]*4.0
                 con[3] = x[3] - x[1]*5.0 - x[2]
+                evals[] += 1
                 return fc
             end
         elseif nprob == 8
-            # This problem is taken from page 66 of Hock and Schittkowski's
-            # book Test Examples for Nonlinear Programming Codes. It is
-            # their test problem Number 43, and has the name Rosen-Suzuki.
-            prt("Output from test problem 8 (Rosen-Suzuki)")
+            # This problem is taken from page 66 of Hock and Schittkowski's book Test
+            # Examples for Nonlinear Programming Codes. It is their test problem Number 43,
+            # and has the name Rosen-Suzuki.
+            verbose > 0 && prt("Output from test problem 8 (Rosen-Suzuki)")
             n = 4
             m = 3
             xopt = Array{Cdouble}(undef, n)
@@ -154,13 +173,13 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r3 = x[3]
                 con[3] = (5.0 - r1*r1*2.0 - r2*r2 - r3*r3 - x[1]*2.0
                           + x[2] + x[4])
+                evals[] += 1
                 return fc
             end
         elseif nprob == 9
-            # This problem is taken from page 111 of Hock and
-            # Schittkowski's book Test Examples for Nonlinear Programming
-            # Codes. It is their test problem Number 100.
-            prt("Output from test problem 9 (Hock and Schittkowski 100)")
+            # This problem is taken from page 111 of Hock and Schittkowski's book Test
+            # Examples for Nonlinear Programming Codes. It is their test problem Number 100.
+            verbose > 0 && prt("Output from test problem 9 (Hock and Schittkowski 100)")
             n = 7
             m = 4
             xopt = Array{Cdouble}(undef, n)
@@ -203,13 +222,13 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 r3 = x[3]
                 con[4] = (r1*r1*-4.0 - r2*r2 + x[1]*3.0*x[2]
                           - r3*r3*2.0 - x[6]*5.0 + x[7]*11.0)
+                evals[] += 1
                 return fc
             end
         elseif nprob == 10
-            # This problem is taken from page 415 of Luenberger's book
-            # Applied Nonlinear Programming. It is to maximize the area of
-            # a hexagon of unit diameter.
-            prt("Output from test problem 10 (Hexagon area)")
+            # This problem is taken from page 415 of Luenberger's book Applied Nonlinear
+            # Programming. It is to maximize the area of a hexagon of unit diameter.
+            verbose > 0 && prt("Output from test problem 10 (Hexagon area)")
             n = 9
             m = 14
             xopt = fill!(Array{Cdouble}(undef, n), 0.0)
@@ -247,48 +266,52 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                 con[12] = -x[5]*x[9]
                 con[13] = x[5]*x[8] - x[6]*x[7]
                 con[14] = x[9]
+                evals[] += 1
                 return fc
             end
         else
             error("bad problem number ($nprob)")
         end
 
-        x = Array{Cdouble}(undef, n)
+        x0 = Array{Cdouble}(undef, n)
+        x = similar(x0)
+        c = Array{Cdouble}(undef, max(m, 0))
         for icase in 1:2
-            fill!(x, 1.0)
-            rhobeg = 0.5
-            rhoend = (icase == 2 ? 1e-4 : 0.001)
+            # Initial solution and parameters.
+            fill!(x0, 1.0)
+            kwds = (rhobeg = 0.5/scale,
+                    rhoend = (icase == 2 ? 1e-4 : 0.001)/scale,
+                    verbose = verbose,
+                    maxevals = maxevals,
+                    scale = scale === 𝟙 ? scale : fill!(similar(x, Cdouble), scale))
+            evals[] = 0
             if revcom
                 # Test the reverse communication variant.
-                c = Array{Cdouble}(undef, max(m, 0))
-                ctx = Cobyla.create(n, m, rhobeg, rhoend;
-                                    verbose = 1, maxeval = 2000)
-                status = getstatus(ctx)
+                ctx = Cobyla.Context(copyto!(x, x0), c; kwds...)
+                status = restart!(ctx)
                 while status == Cobyla.ITERATE
                     if m > 0
                         # Some constraints.
                         fx = ftest(x, c)
-                        status = iterate(ctx, fx, x, c)
+                        status = iterate!(ctx, fx, x, c)
                     else
                         # No constraints.
                         fx = ftest(x)
-                        status = iterate(ctx, fx, x)
+                        status = iterate!(ctx, fx, x)
                     end
                 end
-                if status != Cobyla.SUCCESS
-                    println("Something wrong occurred in COBYLA: ", status.reason)
-                end
+                @test ctx.evals == evals[]
             else
-                status, _, fx = if scale == 1
-                    cobyla!(ftest, x; m, rhobeg, rhoend, verbose = 1, maxeval = 2000)
+                status, xm, cm, fx, nf = if inplace
+                    cobyla!(ftest, copyto!(x, x0), c; kwds...)
                 else
-                    cobyla!(ftest, x; m, rhobeg=rhobeg/scale, rhoend=rhoend/scale,
-                            scale = fill!(Array{Cdouble}(undef, n), scale),
-                            verbose = 1, maxeval = 2000)
+                    cobyla(ftest, x0, size(c)...; kwds...)
                 end
-                @test issuccess(status)
-                @test status.code isa Integer
-                @test status.reason isa String
+                @test nf == evals[]
+                @test (xm === x) == inplace
+                @test (cm === c) == inplace
+                xm === x || copyto!(x, xm)
+                cm === c || copyto!(c, cm)
             end
             if nprob == 10
                 tempa = x[1] + x[3] + x[5] + x[7]
@@ -303,17 +326,29 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                     xopt[i + 4] = xopt[i]
                 end
             end
+            if verbose > 0 && status != Cobyla.SUCCESS
+                printstyled("Something wrong occurred in COBYLA: ", summary(status),
+                            "\n"; color=:red)
+            end
+            @test issuccess(status) == (status == Cobyla.SUCCESS)
+            @test issuccess(status)
+            @test summary(status) isa String
+            # Compare the solution to the known optimum.
+            rtol = 0.13 # <- due to the choice of rhoend, the accuracy is rather poor...
+            atol = 1e-6
+            @test x ≈ xopt atol=atol rtol=rtol
             temp = 0.0
             for i in 1:n
                 r1 = x[i] - xopt[i]
                 temp += r1*r1
             end
-            @printf("\n     Least squares error in variables =%16.6E\n", sqrt(temp))
+            verbose > 0 && @printf("\n     Least squares error in variables =%16.6E\n",
+                                   sqrt(temp))
         end
-        @printf("  ------------------------------------------------------------------\n")
+        verbose > 0 && @printf("  ------------------------------------------------------------------\n")
     end
 end
 
-isinteractive() && runtests()
+end # module CobylaTests
 
-end # module
+nothing
