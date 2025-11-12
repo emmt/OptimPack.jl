@@ -11,6 +11,7 @@ module NewuoaTests
 using Printf, Test, Neutrals
 using OptimPack.Newuoa
 using OptimPack: configure!, restart!, iterate!
+using OptimPack_jll
 
 const evals = Ref{Int}()
 

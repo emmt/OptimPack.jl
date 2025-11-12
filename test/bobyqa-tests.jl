@@ -10,6 +10,7 @@ module BobyqaTests
 
 using Printf, Test, Neutrals
 using OptimPack.Bobyqa
+using OptimPack_jll
 
 const evals = Ref{Int}()
 

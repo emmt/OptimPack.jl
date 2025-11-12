@@ -11,6 +11,7 @@ module CobylaTests
 using Printf, Test, Neutrals
 using OptimPack.Cobyla
 using OptimPack: configure!, restart!, iterate!
+using OptimPack_jll
 
 const evals = Ref{Int}()
 
