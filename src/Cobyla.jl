@@ -29,8 +29,7 @@ using ...OptimPack:
     OptimPack,
     throw_assertion_failed,
     throw_bad_argument,
-    throw_dimension_mismatch,
-    throw_package_required
+    throw_dimension_mismatch
 
 # NOTE This enumeration is generated automatically, see `../gen/README.md`.
 @cenum Status::Int32 begin
@@ -215,7 +214,7 @@ The following keywords are available:
   Hennart), Kluwer Academic Publishers, pp. 51-67 (1994).
 
 """
-cobyla(args...; kwds...) = throw_package_required(:OptimPack_jll)
+function cobyla end
 
 """
     using OptimPack_jll
@@ -227,7 +226,7 @@ variables; on return, `x` is overwritten by the solution. See [`cobyla`](@ref) f
 description of the algorithm and available keywords.
 
 """
-cobyla!(args...; kwds...) = throw_package_required(:OptimPack_jll)
+function cobyla! end
 
 # TODO doc. needed
 for func in (:maximize, :minimize)

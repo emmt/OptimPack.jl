@@ -29,8 +29,7 @@ using ...OptimPack:
     OptimPack,
     throw_assertion_failed,
     throw_bad_argument,
-    throw_dimension_mismatch,
-    throw_package_required
+    throw_dimension_mismatch
 
 # NOTE This enumeration is generated automatically, see `../gen/README.md`.
 @cenum Status::Int32 begin
@@ -184,7 +183,7 @@ The following keywords are available:
   55-297 (2006).
 
 """
-newuoa(args...; kwds...) = throw_package_required(:OptimPack_jll)
+function newuoa end
 
 """
     using OptimPack_jll
@@ -196,7 +195,7 @@ return, `x` is overwritten by the solution. See [`newuoa`](@ref) for a descripti
 algorithm and available keywords.
 
 """
-newuoa!(args...; kwds...) = throw_package_required(:OptimPack_jll)
+function newuoa! end
 
 # TODO doc. needed
 for func in (:maximize, :minimize)

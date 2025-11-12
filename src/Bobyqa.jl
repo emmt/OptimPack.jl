@@ -32,8 +32,7 @@ using ...OptimPack:
     OptimPack,
     throw_assertion_failed,
     throw_bad_argument,
-    throw_dimension_mismatch,
-    throw_package_required
+    throw_dimension_mismatch
 
 if !isdefined(@__MODULE__, :Memory)
     const Memory{T} = Vector{T}
@@ -307,7 +306,7 @@ The following keywords are available:
   Theoretical Physics, Cambridge, England (2009).
 
 """
-bobyqa(args...; kwds...) = throw_package_required(:OptimPack_jll)
+function bobyqa end
 
 """
     using OptimPack_jll
@@ -319,7 +318,7 @@ specifies the initial variables; on return, `x` is overwritten by the solution. 
 [`bobyqa`](@ref) for a description of the algorithm and available keywords.
 
 """
-bobyqa!(args...; kwds...) = throw_package_required(:OptimPack_jll)
+function bobyqa! end
 
 for func in (:maximize, :minimize)
     func! = Symbol(func,"!")
