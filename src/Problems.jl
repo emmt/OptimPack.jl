@@ -184,6 +184,44 @@ xinit(f::typeof(Beale)) = [1, 2]
 xbest(f::typeof(Beale)) = [3, 1//2]
 fbest(f::typeof(Beale)) = 𝟘
 
+#-------------------------------------------------------------------------- GoldsteinPrice -
+
+"""
+    OptimPack.Problems.GoldsteinPrice(x, y)
+    OptimPack.Problems.GoldsteinPrice([x, y])
+
+Return the value of the Goldstein-Price's function, a multi-modal function used to test the
+performances of optimization algorithms. The function is defined by:
+
+```julia
+f(x, y) = ((1 + (x + y + 1)^2*(19 - 14x + 3x^2 - 14y + 6x*y + 3y^2))*
+           (30 + (2x - 3y)^2*(18 - 32x + 12x^2 + 48y - 36x*y + 27y^2))
+```
+
+The Goldstein-Price's function has one minimum on `-2 ≤ x ≤ 2`, `-2 ≤ y ≤ 2`:
+
+    f(0, -1) = 3
+
+See also: https://en.wikipedia.org/wiki/Test_functions_for_optimization
+
+"""
+GoldsteinPrice(x::T, y::T) where {T<:AbstractFloat} =
+    ((1 + (x + y + 1)^2*(19 - 14x + 3x^2 - 14y + 6x*y + 3y^2))
+     *(30 + (2x - 3y)^2*(18 - 32x + 12x^2 + 48y - 36x*y + 27y^2)))
+GoldsteinPrice(x, y) = GoldsteinPrice(promote(x, y)...)
+GoldsteinPrice(x::T, y::T) where {T<:Integer} = GoldsteinPrice(float(x), float(y))
+function GoldsteinPrice(x::AbstractVector)
+    length(x) == 2 || throw(ArgumentError("variable must have 2 elements"))
+    i = firstindex(x)
+    return @inbounds GoldsteinPrice(x[i], x[i+1])
+end
+
+Base.summary(f::typeof(Beale)) = "Goldstein-Price's test function"
+
+xinit(f::typeof(GoldsteinPrice)) = [-1, -3]
+xbest(f::typeof(GoldsteinPrice)) = [0, -1]
+fbest(f::typeof(GoldsteinPrice)) = 3
+
 #---------------------------------------------------------------------------------- VARDIM -
 
 """
