@@ -3,6 +3,24 @@ function configure! end
 function restart! end
 function iterate! end
 
+function ordinal_suffix(n::Integer)
+    if n > zero(n)
+        ten = oftype(n, 10)
+        if rem(div(n, ten), ten) != one(n)
+            # Number is positive and the tens digit is not 1.
+            r = rem(n, ten)
+            if r == oftype(r, 1)
+                return "st"
+            elseif r == oftype(r, 2)
+                return "nd"
+            elseif r == oftype(r, 3)
+                return "rd"
+            end
+        end
+    end
+    return "th"
+end
+
 @noinline throw_bad_argument(msg::AbstractString) = throw(ArgumentError(msg))
 @noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
 

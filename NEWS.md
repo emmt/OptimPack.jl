@@ -14,6 +14,10 @@
 
 # Added
 
+- `simplex(f, x0, siz)` to optimize `f(x)` by Nelder & Mead *Simplex* method. The method is
+  derivative-free and can use a context with all required resources to avoid further
+  allocations when solving many similar problems.
+
 - `fminbrkt` and `fmaxbrkt` to search for a local extremum in a bracketed interval.
 
 - Aliases `Brent.maximize(f, a, b)` and `Brent.minimize(f, a, b)` to `fmin` and `fmax`.

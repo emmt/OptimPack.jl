@@ -49,6 +49,10 @@ export
     fminbrkt,
     fzero,
 
+    # Nelder & Mead "Simplex" method.
+    Simplex,
+    simplex,
+
     # Spectral Projection Gradient.
     SPG,
     spg,
@@ -95,6 +99,9 @@ include("Step.jl")
 
 include("SPG.jl")
 import .SPG: spg, spg!
+
+include("Simplex.jl")
+import .Simplex: simplex
 
 include("Powell.jl")
 import .Powell:
