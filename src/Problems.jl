@@ -276,8 +276,12 @@ status, x, fx, nf = newuoa(f, x0; rhobeg=1/n, rhoend=1e-6, npt=npts[1], maxevals
 struct SPHRPTS{T<:AbstractFloat,P<:AbstractMatrix{T}}
     p::P
 end
-SPHRPTS(m::Integer) = SPHRPTS{Float64}(m)
-SPHRPTS{T}(m::Integer) where {T<:AbstractFloat} = SPHRPTS(Array{T}(undef, 3, m))
+SPHRPTS(n::Integer) = SPHRPTS{Float64}(n)
+function SPHRPTS{T}(n::Integer) where {T<:AbstractFloat}
+    @assert iseven(n)
+    return SPHRPTS(Array{T}(undef, 3, n÷2))
+end
+
 function (f::SPHRPTS{R})(x::AbstractVector{S}) where {R<:AbstractFloat,S<:Real}
     T = promote_type(R, S)
     p = f.p
