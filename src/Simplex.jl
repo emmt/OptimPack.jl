@@ -1,6 +1,6 @@
 """
 
-Module `Simplex` implements Nelder & Mead *Simplex* algorithm to find the minimum of an
+Module `Simplex` implements Nelder-Mead *Simplex* algorithm to find the minimum of an
 unconstrained multivariate function.
 
 # Description
@@ -18,13 +18,13 @@ and that is reusable to solve any number of similar problems.
 # Remarks
 
   (1) The Numerical Recipes and GSL (http://www.gnu.org/software/gsl/) versions of the
-      Nelder & Mead algorithm do not perform inside contraction (only outside contraction).
+      Nelder-Mead algorithm do not perform inside contraction (only outside contraction).
 
   (2) In 1-D, Brent's method for smooth functions or golden search for non-smooth functions
-      are probably better than Nelder & Mead algorithm -- that is: faster and guaranteed
+      are probably better than Nelder-Mead algorithm -- that is: faster and guaranteed
       convergence.
 
-  (3) Luersen and Le Riche have proposed a modified Nelder & Mead algorithm to account for
+  (3) Luersen and Le Riche have proposed a modified Nelder-Mead algorithm to account for
       bound constraints and to perform global optimization.
 
 # References
@@ -154,11 +154,10 @@ const default_order = TotalMin
 """
     ctx = Simplex.Context{T,F,X}(undef, n; order::Ordering=TotalMin, kwds...)
 
-Create a context for optimizing a multivariate function by the Nelder & Mead *Simplex*
-method. `T` is the floating-point type for computations, `F` is the type returned by the
-objective function, `X` is the type of the variables, `n` is the number of variables, and
-`order` is the ordering of function values (the default amounts to minimizing the objective
-function).
+Create a context for optimizing a multivariate function by the Nelder-Mead *Simplex* method.
+`T` is the floating-point type for computations, `F` is the type returned by the objective
+function, `X` is the type of the variables, `n` is the number of variables, and `order` is
+the ordering of function values (the default amounts to minimizing the objective function).
 
 The storage for the points needed by the algorithm (the `n + 1` vertices of the simplex plus
 additional work points) is not created by this method as this requires to have an instance
@@ -173,7 +172,7 @@ to build the initial simple.
 
 ## See also
 
-[`simplex`](@ref) for a description of the Nelder & Mead *Simplex* method.
+[`simplex`](@ref) for a description of the Nelder-Mead *Simplex* method.
 
 [`Simplex.configure!`](@ref) for allowed keywords `kwds...`.
 
@@ -315,7 +314,7 @@ LinearAlgebra.issuccess(ctx::Context) =
     ctx = Simplex.Context(f, x0, args...; order::Ordering=TotalMin, kwds...)
     ctx = Simplex.Context(f(x0), x0, args...; order::Ordering=TotalMin, kwds...)
 
-Create a context for optimizing a multivariate function `f` by the Nelder & Mead *Simplex*
+Create a context for optimizing a multivariate function `f` by the Nelder-Mead *Simplex*
 method and with an initial simplex build according to the initial variables `x0` and
 arguments `args...` (see [`Simplex.build_simplex!`](@ref)). Such a context can be directly
 used to optimize the objective function by calling:
@@ -794,7 +793,7 @@ const solve = simplex
 """
     solve!(ctx::Simplex.Context, f, x0, args...; kwds...) -> ctx
 
-Run the Nelder & Mead *Simplex* algorithm using context `ctx` to optimize the multivariate
+Run the Nelder-Mead *Simplex* algorithm using context `ctx` to optimize the multivariate
 objective function `f`. Initial variables `x0` and arguments `args...` are used to build the
 initial simplex.
 

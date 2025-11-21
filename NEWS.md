@@ -14,7 +14,7 @@
 
 # Added
 
-- `simplex(f, x0, siz)` to optimize `f(x)` by Nelder & Mead *Simplex* method. The method is
+- `simplex(f, x0, siz)` to optimize `f(x)` by Nelder-Mead *Simplex* method. The method is
   derivative-free and can use a context with all required resources to avoid further
   allocations when solving many similar problems.
 
