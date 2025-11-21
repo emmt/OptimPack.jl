@@ -7,33 +7,33 @@ methods.
 module Problems
 
 using TypeUtils: @public
-@public Rosenbrock ARWHEAD CHROSEN VARDIM TRIGSSQS SPHRPTS xinit xbest fbest
+@public Rosenbrock ARWHEAD CHROSEN VARDIM TRIGSSQS SPHRPTS x_init x_best f_best
 
 using Neutrals
 
 """
-    OptimPack.Problems.xinit(f) -> x0
+    OptimPack.Problems.x_init(f) -> x0
 
 Return the initial point for testing the optimization of `f`.
 
 """
-function xinit end
+function x_init end
 
 """
-    OptimPack.Problems.xbest(f) -> xbest
+    OptimPack.Problems.x_best(f) -> x_best
 
 Return the solution of the optimization of `f`.
 
 """
-function xbest end
+function x_best end
 
 """
-    OptimPack.Problems.fbest(f) -> fbest
+    OptimPack.Problems.f_best(f) -> f_best
 
-Return the value of `f(xbest)` at the solution `xbest` of the optimization of `f`.
+Return the value of `f(x_best)` at the solution `x_best` of the optimization of `f`.
 
 """
-fbest(f) = f(xbest(f))
+f_best(f) = f(x_best(f))
 
 randu(r::Tuple{Real,Real}, dims::Integer...) = randu(r, dims)
 randu(r::Tuple{Real,Real}, dims::Tuple{Vararg{Integer}}) = randu(promote(r...), dims)
@@ -84,7 +84,7 @@ end
 
 Base.summary(f::Rosenbrock) = "Rosenbrock's test function (n=$(f.n), a=$(f.a), b=$(f.b))"
 
-function xinit(f::Rosenbrock{T}) where {T}
+function x_init(f::Rosenbrock{T}) where {T}
     m = f.n÷2
     x = Vector{T}(undef, 2m)
     x1 = convert(T, -3)
@@ -96,7 +96,7 @@ function xinit(f::Rosenbrock{T}) where {T}
     return x
 end
 
-function xbest(f::Rosenbrock{T}) where {T}
+function x_best(f::Rosenbrock{T}) where {T}
     m = f.n÷2
     x = Vector{T}(undef, 2m)
     x1 = f.a
@@ -108,7 +108,7 @@ function xbest(f::Rosenbrock{T}) where {T}
     return x
 end
 
-fbest(f::Rosenbrock{T}) where {T} = zero(T)
+f_best(f::Rosenbrock{T}) where {T} = zero(T)
 
 #------------------------------------------------------------------------------ Himmelblau -
 
@@ -146,9 +146,9 @@ end
 
 Base.summary(f::typeof(Himmelblau)) = "Himmelblau's test function"
 
-xinit(f::typeof(Himmelblau)) = [4, 2]
-xbest(f::typeof(Himmelblau)) = [3, 2]
-fbest(f::typeof(Himmelblau)) = 𝟘
+x_init(f::typeof(Himmelblau)) = [4, 2]
+x_best(f::typeof(Himmelblau)) = [3, 2]
+f_best(f::typeof(Himmelblau)) = 𝟘
 
 #------------------------------------------------------------------------------ Beale -
 
@@ -180,9 +180,9 @@ end
 
 Base.summary(f::typeof(Beale)) = "Beale's test function"
 
-xinit(f::typeof(Beale)) = [1, 2]
-xbest(f::typeof(Beale)) = [3, 1//2]
-fbest(f::typeof(Beale)) = 𝟘
+x_init(f::typeof(Beale)) = [1, 2]
+x_best(f::typeof(Beale)) = [3, 1//2]
+f_best(f::typeof(Beale)) = 𝟘
 
 #-------------------------------------------------------------------------- GoldsteinPrice -
 
@@ -216,11 +216,11 @@ function GoldsteinPrice(x::AbstractVector)
     return @inbounds GoldsteinPrice(x[i], x[i+1])
 end
 
-Base.summary(f::typeof(Beale)) = "Goldstein-Price's test function"
+Base.summary(f::typeof(GoldsteinPrice)) = "Goldstein-Price's test function"
 
-xinit(f::typeof(GoldsteinPrice)) = [-1, -3]
-xbest(f::typeof(GoldsteinPrice)) = [0, -1]
-fbest(f::typeof(GoldsteinPrice)) = 3
+x_init(f::typeof(GoldsteinPrice)) = [-1, -3]
+x_best(f::typeof(GoldsteinPrice)) = [0, -1]
+f_best(f::typeof(GoldsteinPrice)) = 3
 
 #---------------------------------------------------------------------------------- VARDIM -
 
@@ -238,10 +238,10 @@ using OptimPack, OptimPack_jll, Test
 using OptimPack: Problems
 n = 20
 f = Problems.VARDIM(n)
-x0 = Problems.xinit(f)
+x0 = Problems.x_init(f)
 status, x, fx, nf = newuoa(f, x0; rhobeg=1/2n, rhoend=1e-6, maxevals=100_000);
-@test x ≈ Problems.xbest(f) atol=1e-5
-@test fx ≈ Problems.fbest(f) atol=1e-10
+@test x ≈ Problems.x_best(f) atol=1e-5
+@test fx ≈ Problems.f_best(f) atol=1e-10
 ```
 
 """
@@ -263,7 +263,7 @@ function (f::VARDIM)(x::AbstractArray)
     return q + r^2 + r^4
 end
 
-function xinit(f::VARDIM{T}) where {T<:AbstractFloat}
+function x_init(f::VARDIM{T}) where {T<:AbstractFloat}
     n = f.n
     x0 = Vector{T}(undef, n)
     for k in 1:n
@@ -272,8 +272,8 @@ function xinit(f::VARDIM{T}) where {T<:AbstractFloat}
     return x0
 end
 
-xbest(f::VARDIM{T}) where {T<:AbstractFloat} = ones(T, f.n)
-fbest(f::VARDIM{T}) where {T<:AbstractFloat} = zero(T)
+x_best(f::VARDIM{T}) where {T<:AbstractFloat} = ones(T, f.n)
+f_best(f::VARDIM{T}) where {T<:AbstractFloat} = zero(T)
 
 Base.summary(f::VARDIM) = "VARDIM test function (n=$(f.n))"
 
@@ -296,10 +296,10 @@ using OptimPack: Problems
 n = 20
 npts = (2n+1, round(Int, sqrt((n + 1//2)*(n + 1)*(n + 2))), (n+1)*(n+2)÷2)
 f = Problems.TRIGSSQS(n)
-x0 = Problems.xinit(f)
+x0 = Problems.x_init(f)
 status, x, fx, nf = newuoa(f, x0; rhobeg=0.1, rhoend=1e-6, npt=npts[1], maxevals=10_000);
-@test x ≈ Problems.xbest(f) rtol=1e-5
-@test fx ≈ Problems.fbest(f) atol=2e-3
+@test x ≈ Problems.x_best(f) rtol=1e-5
+@test fx ≈ Problems.f_best(f) atol=2e-3
 ```
 
 """
@@ -310,14 +310,14 @@ struct TRIGSSQS{T<:AbstractFloat}
     Ct::Matrix{T} # the transpose of C
     xr::Vector{T} # random
     yr::Vector{T} # random noise
-    x0::Vector{T} # initial point
-    xbest::Vector{T} # solution
+    x_init::Vector{T} # initial point
+    x_best::Vector{T} # solution
 end
 
 Base.summary(f::TRIGSSQS) = "TRIGSSQS test function (m=$(length(f.b)), n=$(length(f.θ))))"
 
-xinit(f::TRIGSSQS) = f.x0
-xbest(f::TRIGSSQS) = f.xbest
+x_init(f::TRIGSSQS) = f.x_init
+x_best(f::TRIGSSQS) = f.x_best
 
 TRIGSSQS(n::Int) = TRIGSSQS{Float64}(n)
 TRIGSSQS(m::Int, n::Int) = TRIGSSQS{Float64}(m, n)
@@ -330,19 +330,19 @@ function TRIGSSQS{T}(m::Int, n::Int) where {T<:AbstractFloat}
     xr = randu((-pi, pi), n) # uniform random in [-π,π]
     yr = randu((-pi, pi), n) # uniform random in [-π-,π]
     b = Vector{T}(undef, m)
-    xbest = @. xr/θ
-    x0 = @. (xr + yr/10)/θ
+    x_best = @. xr/θ
+    x_init = @. (xr + yr/10)/θ
     for i in 1:m
         s = zero(T)
         c = zero(T)
         for j in 1:n
-            sj, cj = sincos(θ[j]*xbest[j])
+            sj, cj = sincos(θ[j]*x_best[j])
             s += St[j,i]*sj
             c += Ct[j,i]*cj
         end
         b[i] = s + c
     end
-    return TRIGSSQS{T}(θ, b, St, Ct, xr, yr, x0, xbest)
+    return TRIGSSQS{T}(θ, b, St, Ct, xr, yr, x_init, x_best)
 end
 
 function (f::TRIGSSQS{T})(x::AbstractArray) where {T}
@@ -384,10 +384,10 @@ using OptimPack: Problems
 n = 20
 npts = (2n+1, round(Int, sqrt((n + 1//2)*(n + 1)*(n + 2))), (n+1)*(n+2)÷2)
 f = Problems.SPHRPTS(n)
-x0 = Problems.xinit(f)
+x0 = Problems.x_init(f)
 status, x, fx, nf = newuoa(f, x0; rhobeg=1/n, rhoend=1e-6, npt=npts[1], maxevals=50_000);
-@test x ≈ Problems.xbest(f) rtol=1e-5
-@test fx ≈ Problems.fbest(f) atol=2e-3
+@test x ≈ Problems.x_best(f) rtol=1e-5
+@test fx ≈ Problems.f_best(f) atol=2e-3
 ```
 
 """
@@ -427,7 +427,7 @@ function (f::SPHRPTS{R})(x::AbstractVector{S}) where {R<:AbstractFloat,S<:Real}
     return inv(r)
 end
 
-function xinit(f::SPHRPTS{T}) where {T}
+function x_init(f::SPHRPTS{T}) where {T}
     m = size(f.p, 2)
     n = 2m
     x = Array{T}(undef, n)
@@ -458,7 +458,7 @@ function (f::ARWHEAD)(x::AbstractVector)
     return s
 end
 
-xinit(f::ARWHEAD{T}) where {T} = ones(T, n)
+x_init(f::ARWHEAD{T}) where {T} = ones(T, n)
 
 #--------------------------------------------------------------------------------- CHROSEN -
 
@@ -479,6 +479,6 @@ function (f::CHROSEN)(x::AbstractVector)
     return s
 end
 
-xinit(f::CHROSEN{T}) where {T} = -ones(T, n)
+x_init(f::CHROSEN{T}) where {T} = -ones(T, n)
 
 end # module
