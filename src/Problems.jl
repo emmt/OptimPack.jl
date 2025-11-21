@@ -150,6 +150,40 @@ xinit(f::typeof(Himmelblau)) = [4, 2]
 xbest(f::typeof(Himmelblau)) = [3, 2]
 fbest(f::typeof(Himmelblau)) = 𝟘
 
+#------------------------------------------------------------------------------ Beale -
+
+"""
+    OptimPack.Problems.Beale(x, y)
+    OptimPack.Problems.Beale([x, y])
+
+Return the value of the Beale's function, a function used to test the performances of
+optimization algorithms. The function is defined by:
+
+    f(x, y) = (3//2 - x + x*y)^2 + (9//4 - x +x*y^2)^2 + (21//8 - x + x*y^3)^2
+
+The Beale's function has one local minimum on `-4.5 ≤ x ≤ 4.5`, `-4.5 ≤ y ≤ 4.5`:
+
+    f(3, 0.5) = 0
+
+See also: https://en.wikipedia.org/wiki/Test_functions_for_optimization
+
+"""
+Beale(x::T, y::T) where {T<:AbstractFloat} =
+    (3//2 - x + x*y)^2 + (9//4 - x +x*y^2)^2 + (21//8 - x + x*y^3)^2
+Beale(x, y) = Beale(promote(x, y)...)
+Beale(x::T, y::T) where {T<:Integer} = Beale(float(x), float(y))
+function Beale(x::AbstractVector)
+    @assert length(x) == 2
+    i = firstindex(x)
+    return @inbounds Beale(x[i], x[i+1])
+end
+
+Base.summary(f::typeof(Beale)) = "Beale's test function"
+
+xinit(f::typeof(Beale)) = [1, 2]
+xbest(f::typeof(Beale)) = [3, 1//2]
+fbest(f::typeof(Beale)) = 𝟘
+
 #---------------------------------------------------------------------------------- VARDIM -
 
 """
