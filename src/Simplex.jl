@@ -182,8 +182,10 @@ to build the initial simple.
 
 """
 mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
-    # The objective function at the n+1 vertices of the simplex.
+    # The objective function at the n+1 vertices of the simplex and flags indicating whether
+    # they have been actually computed.
     costs::Memory{F}
+    flags::Memory{Bool}
 
     # Ordering of function values.
     order::O
@@ -266,6 +268,7 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
         ctx.order              = order
         ctx.n                  = n
         ctx.costs              = Memory{F}(undef, n + 1)
+        ctx.flags              = Memory{Bool}(undef, n + 1)
         ctx.points             = Memory{X}(undef, n + 3)
         ctx.j_best             = 1
         ctx.j_worst            = 1
@@ -375,6 +378,7 @@ function Context(f, x0::AbstractArray, args...; kwds...)
     # Store the first vertex of the simplex.
     ctx.points[1] = x1
     ctx.costs[1] = f1
+    ctx.flags[1] = true
     ctx.evaluations = nf
 
     # Build the initial simplex.
@@ -398,7 +402,7 @@ function reset!(ctx::Context)
     ctx.LVR = 𝟙
 
     # Reset the objective function values.
-    fill_with_NaNs!(ctx.costs)
+    fill!(ctx.flags, false)
 
     # Reset the status.
     ctx.status = :initializing
@@ -418,6 +422,7 @@ function instantiate!(ctx::Context, x0::AbstractArray)
     n ≥ 2 || throw_assertion_failed("number of variables should be ≥ 2, got ", n)
     points = ctx.points
     costs = ctx.costs
+    flags = ctx.flags
     length(points) == n + 3 || throw_assertion_failed(
         "invalid number of stored points, should be ", n + 3, ", got ", length(points))
     length(costs) == n + 1 || throw_assertion_failed(
@@ -433,6 +438,9 @@ function instantiate!(ctx::Context, x0::AbstractArray)
     for j in eachindex(points)
         if !isassigned(points, j)
             points[j] = similar(x0, vertex_eltype(ctx))
+            if j ≤ length(flags)
+                flags[j] = false
+            end
         end
         length(points[j]) == n || throw_dimension_mismatch(
             j, ordinal_suffix(j), " simplex vertex should have ", n, " entries, got ",
@@ -444,7 +452,10 @@ function instantiate!(ctx::Context, x0::AbstractArray)
             j, ordinal_suffix(j),
             " simplex vertex and variables must have the same first linear index")
     end
-    points[1] === x0 || copy!(points[1], x0)
+    if !(points[1] === x0)
+        copy!(points[1], x0)
+        flags[1] = false
+    end
     return ctx
 end
 
@@ -508,6 +519,7 @@ function build_simplex!(ctx::Context, x0::AbstractArray, siz::Union{Number,Abstr
 
     # Retrieve first vertex of simplex.
     points = ctx.points
+    flags = ctx.flags
     x1 = points[1]
     start = firstindex(x1)
 
@@ -526,6 +538,7 @@ function build_simplex!(ctx::Context, x0::AbstractArray, siz::Union{Number,Abstr
         isfinite(s) || throw_bad_argument(
             "`siz", (siz isa AbstractArray ? "[$k]" : ""), " = ", s, "` is non-finite")
         xj = copy!(points[j], x1)
+        flags[j] = false
         xj[k] += s # add the perturbation
         xj[k] != x1[k] || throw_bad_argument(
             "`siz", (siz isa AbstractArray ? "[$k]" : ""), " = ", s,
@@ -553,7 +566,15 @@ The following keywords specify the stopping rules for the algorithm:
   $default_xtol`.
 
 * `ftol` is a relative tolerance for the convergence in the objective function. By default,
-  `ftol = $default_ftol`.
+  `ftol = $default_ftol`. Convergence in the objective occurs as soon as:
+
+  ```
+  maxⱼₖ|f(xⱼ) - f(xₖ)| ≤ ftol*maxⱼ|f(xⱼ)|
+  ```
+
+  where `xⱼ` denotes the `j`-th vertex of the simplex. This criterion is not used if `ftol =
+  NaN` or if the above expression is not applicable (e.g. because objective function takes
+  ordered but non-numerical values).
 
 * `maxiters` sets the maximum number of iterations which is virtually unlimited by default.
 
@@ -719,7 +740,7 @@ The status of the algorithm is one of`⁽¹⁾`:
 * `:too_many_iterations` if the maximum number of algorithm iterations have been
   exceeded.
 
-`⁽¹⁾` The status may also be set to another symbolic value of by the observer if the caller
+`⁽¹⁾` The status may also be set to another symbolic value by the observer if the caller
 opts to this possibility. During the search, the algorithm is stopped if its status becomes
 different from `:searching`.
 
@@ -866,6 +887,7 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
     sigma  = ctx.sigma
     points = ctx.points
     costs  = ctx.costs
+    flags  = ctx.flags
     n      = ctx.n
 
     # Check that all points have been allocated. This is a simple mean to detect that
@@ -878,11 +900,20 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
     t0 = time()
 
     # Evaluate the objective function at the vertices of the initial simplex.
-    @inbounds for j in eachindex(costs)
-        if restart || isnan(costs[j])
+    @inbounds for j in eachindex(costs, flags)
+        if restart || !flags[j]
             costs[j] = f(points[j])
+            flags[j] = true
             ctx.evaluations += 1
         end
+    end
+
+    # Manage to skip testing the convergence in the objective function if
+    # maxⱼₖ|f(xⱼ) - f(xₖ)| or |f(xⱼ)| cannot be computed.
+    ftol = ctx.ftol
+    if isnan(ftol) || ftol < zero(ftol) || !applicable(-, costs[1], costs[2]) ||
+        !applicable(abs, costs[1])
+        ftol = oftype(ftol, -1)
     end
 
     # To determine the transformation of the simplex, the reflection point is first computed
@@ -924,11 +955,11 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
             # Assume convergence in the variables if the "linearized volume ratio" of the
             # simplex is smaller than `xtol`.
             ctx.status = :convergence_in_x
-        elseif abs(f_best - f_worst) ≤ ctx.ftol*max(abs(f_best), abs(f_worst))
+        elseif ftol ≥ 𝟘 && abs(f_best - f_worst) ≤ ftol*max(abs(f_best), abs(f_worst))
             # Assume convergence in the objective function if the relative difference
             # between the best and worst objective function is smaller than `ftol`.
             ctx.status = :convergence_in_f
-        elseif iszero(ctx.LVR) || iszero(f_best - f_worst)
+        elseif iszero(ctx.LVR) || isequal(f_best, f_worst)
             ctx.status = :rounding_errors
         elseif ctx.iterations ≥ ctx.maxiters
             ctx.status = :too_many_iterations
@@ -1182,7 +1213,7 @@ end
 scale!(ctx::Context, j::Int, s::Real) = scale!(ctx.points[j], s)
 function scale!(A::AbstractArray, s::Real)
     if iszero(s)
-        fill_with_zeros!(A)
+        fill!(A, zero(eltype(A)))
     elseif !isone(s)
         s = convert_multiplier(eltype(A), s)
         @inbounds for i in eachindex(A)
@@ -1191,10 +1222,6 @@ function scale!(A::AbstractArray, s::Real)
     end
     return A
 end
-
-# TODO Use OptimPack/LazyAlgebra vzeros! and vnans!
-fill_with_zeros!(A::AbstractArray) = fill!(A, zero(eltype(A)))
-fill_with_NaNs!(A::AbstractArray) = fill!(A, NaN*zero(eltype(A)))
 
 """
     Simplex.new_point!(dst, alpha, pnt, org) -> dst
