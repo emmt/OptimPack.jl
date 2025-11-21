@@ -82,6 +82,8 @@ function (f::Rosenbrock{R})(x::AbstractArray{<:Real}) where {R}
     end
 end
 
+Base.summary(f::Rosenbrock) = "Rosenbrock's test function (n=$(f.n), a=$(f.a), b=$(f.b))"
+
 function xinit(f::Rosenbrock{T}) where {T}
     m = f.n÷2
     x = Vector{T}(undef, 2m)
@@ -161,6 +163,8 @@ end
 xbest(f::VARDIM{T}) where {T<:AbstractFloat} = ones(T, f.n)
 fbest(f::VARDIM{T}) where {T<:AbstractFloat} = zero(T)
 
+Base.summary(f::VARDIM) = "VARDIM test function (n=$(f.n))"
+
 #-------------------------------------------------------------------------------- TRIGSSQS -
 # Trigonometric sum of squares.
 
@@ -197,6 +201,8 @@ struct TRIGSSQS{T<:AbstractFloat}
     x0::Vector{T} # initial point
     xbest::Vector{T} # solution
 end
+
+Base.summary(f::TRIGSSQS) = "TRIGSSQS test function (m=$(length(f.b)), n=$(length(f.θ))))"
 
 xinit(f::TRIGSSQS) = f.x0
 xbest(f::TRIGSSQS) = f.xbest
@@ -282,6 +288,8 @@ function SPHRPTS{T}(n::Integer) where {T<:AbstractFloat}
     return SPHRPTS(Array{T}(undef, 3, n÷2))
 end
 
+Base.summary(f::SPHRPTS) = "SPHRPTS test function (n=$(2*size(f.p, 2)))"
+
 function (f::SPHRPTS{R})(x::AbstractVector{S}) where {R<:AbstractFloat,S<:Real}
     T = promote_type(R, S)
     p = f.p
@@ -326,6 +334,8 @@ struct ARWHEAD{T<:AbstractFloat}
 end
 ARWHEAD(n::Integer) = ARWHEAD{Float64}(n)
 
+Base.summary(f::ARWHEAD) = "ARWHEAD test function (n=$(f.n))"
+
 function (f::ARWHEAD)(x::AbstractVector)
     n = f.n
     @assert eachindex(x) == 𝟙:n
@@ -344,6 +354,8 @@ struct CHROSEN{T<:AbstractFloat}
     n::Int
 end
 CHROSEN(n::Integer) = CHROSEN{Float64}(n)
+
+Base.summary(f::CHROSEN) = "CHROSEN test function (n=$(f.n))"
 
 function (f::CHROSEN)(x::AbstractVector)
     n = f.n
