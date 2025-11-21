@@ -110,6 +110,46 @@ end
 
 fbest(f::Rosenbrock{T}) where {T} = zero(T)
 
+#------------------------------------------------------------------------------ Himmelblau -
+
+"""
+    OptimPack.Problems.Himmelblau(x, y)
+    OptimPack.Problems.Himmelblau([x, y])
+
+Return the value of the Himmelblau's function, a multi-modal function used to test the
+performances of optimization algorithms. The function is defined by:
+
+    f(x, y) = (x^2 + y - 11)^2 + (x + y^2 - 7)^2
+
+The Himmelblau's function has one local maximum:
+
+    f(-0.270845, -0.923039) = 181.617,
+
+and four identical local minima:
+
+    f( 3.0,       2.0)      = 0.0,
+    f(-2.805118,  3.131312) = 0.0,
+    f(-3.779310, -3.283186) = 0.0,
+    f( 3.584428, -1.848126) = 0.0.
+
+See also: http://en.wikipedia.org/wiki/Himmelblau%27s_function
+
+"""
+Himmelblau(x::T, y::T) where {T<:AbstractFloat} = (x^2 + y - 11)^2 + (x + y^2 - 7)^2
+Himmelblau(x, y) = Himmelblau(promote(x, y)...)
+Himmelblau(x::T, y::T) where {T<:Integer} = Himmelblau(float(x), float(y))
+function Himmelblau(x::AbstractVector)
+    @assert length(x) == 2
+    i = firstindex(x)
+    return @inbounds Himmelblau(x[i], x[i+1])
+end
+
+Base.summary(f::typeof(Himmelblau)) = "Himmelblau's test function"
+
+xinit(f::typeof(Himmelblau)) = [4, 2]
+xbest(f::typeof(Himmelblau)) = [3, 2]
+fbest(f::typeof(Himmelblau)) = 𝟘
+
 #---------------------------------------------------------------------------------- VARDIM -
 
 """
