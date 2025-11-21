@@ -310,6 +310,32 @@ OptimPack.solve!(ctx::Context, args...; kwds...) = solve!(ctx, args...; kwds...)
 LinearAlgebra.issuccess(ctx::Context) =
     ctx.status == :convergence_in_f || ctx.status == :convergence_in_x
 
+function Base.show(io::IO, ::MIME"text/plain", ctx::Context)
+    @lock io begin
+        print(io, "• Algorithm: Nelder-Mead Simplex method")
+        print(io, "\n\n• Number of variables: ", ctx.n)
+        print(io, "\n\n• Status: ")
+        print(io, summary(ctx.status), " (")
+        if issuccess(ctx)
+            printstyled(io, "success"; color=:green)
+        elseif ctx.status ∈ (:allocating, :initializing)
+            printstyled(io, Symbol(ctx.status); color=:yellow)
+        else
+            printstyled(io, "failure"; color=:red)
+        end
+        print(io, ")")
+        if ctx.evaluations > 0
+            print(io, "\n\n• Candidate solution:")
+            print(io, "\n  Best f(x): ", ctx.f_best)
+            print(io, "\n  maxⱼₖ|f(xⱼ) - f(xₖ)|: ", abs(ctx.f_best - ctx.f_worst))
+            print(io, "\n  Linearized volume ratio: ", ctx.LVR)
+            print(io, "\n\n• Counters")
+            print(io, "\n  Iterations: ", ctx.iterations)
+            print(io, "\n  f(x) calls: ", ctx.evaluations)
+        end
+    end
+end
+
 """
     ctx = Simplex.Context(f, x0, args...; order::Ordering=TotalMin, kwds...)
     ctx = Simplex.Context(f(x0), x0, args...; order::Ordering=TotalMin, kwds...)
@@ -379,7 +405,6 @@ function reset!(ctx::Context)
     return ctx
 end
 
-#
 """
     Simplex.instantiate!(ctx::Simplex.Context, x0::AbstractArray)
 
