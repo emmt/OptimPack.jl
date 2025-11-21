@@ -67,7 +67,7 @@ export
 
 # Public but not exported API.
 using TypeUtils: @public
-@public configure! solve! restart! iterate!
+@public Problems configure! solve! restart! iterate!
 
 using LinearAlgebra, Printf
 
@@ -101,6 +101,8 @@ import .Powell:
     Cobyla, cobyla, cobyla!,
     Bobyqa, bobyqa, bobyqa!,
     Newuoa, newuoa, newuoa!
+
+include("Problems.jl")
 
 function __init__()
     @static if !isdefined(Base, :get_extension)
