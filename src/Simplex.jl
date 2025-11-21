@@ -91,42 +91,6 @@ end
 
 const VectorOfArrays{T,N} = AbstractVector{<:AbstractArray{T,N}}
 
-# Simplex status is a simple wrapper around a symbol.
-struct Status
-    sym::Symbol
-end
-
-# Accessor.
-Base.Symbol(status::Status) = status.sym
-
-# Conversion and comparison.
-Base.convert(::Type{Status}, x::Status) = x
-Base.convert(::Type{Status}, x::Symbol) = Status(x)
-Base.convert(::Type{Symbol}, x::Status) = Symbol(x)
-
-for func in (:(==), :isequal)
-    @eval begin
-        Base.$func(x::Status, y::Symbol) = $func(Symbol(x), y)
-        Base.$func(x::Symbol, y::Status) = $func(x,         Symbol(y))
-        Base.$func(x::Status, y::Status) = $func(Symbol(x), Symbol(y))
-    end
-end
-
-Base.summary(status::Status) = status_summary(Symbol(status))
-
-status_summary(sym::Symbol) =
-    sym == :allocating           ? "Allocation of resources in progress" :
-    sym == :initializing         ? "Initialization in progress" :
-    sym == :searching            ? "Search in progress" :
-    sym == :convergence_in_f     ? "Convergence in the objective function" :
-    sym == :convergence_in_x     ? "Convergence in the variable(s)" :
-    sym == :rounding_errors      ? "Rounding errors prevent progress" :
-    sym == :too_many_iterations  ? "Too many algorithm iterations" :
-    sym == :too_many_evaluations ? "Too many evaluations of the objective function" :
-    unknown_status(sym)
-
-@noinline unknown_status(sym::Symbol) = "Unknown status `:$sym`"
-
 # Default parameters for updating the simplex, but see the reference below for other values.
 #
 #     J. M. Parkinson and D. Hutchinson, An investigation into the efficiency of variants on
@@ -233,7 +197,7 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
     # operations to check convergence in the variables.
     LVR::T
 
-    status::Status
+    status::Symbol
 
     # In the original algorithm (Nelder & Mead, 1965), the expansion point is accepted if it
     # is better than the former best point even though it may be worst than the reflection
@@ -313,12 +277,26 @@ OptimPack.solve!(ctx::Context, args...; kwds...) = solve!(ctx, args...; kwds...)
 LinearAlgebra.issuccess(ctx::Context) =
     ctx.status == :convergence_in_f || ctx.status == :convergence_in_x
 
+status_summary(ctx::Context) = status_summary(ctx.status)
+status_summary(sym::Symbol) =
+    sym == :allocating           ? "Allocation of resources in progress" :
+    sym == :initializing         ? "Initialization in progress" :
+    sym == :searching            ? "Search in progress" :
+    sym == :convergence_in_f     ? "Convergence in the objective function" :
+    sym == :convergence_in_x     ? "Convergence in the variable(s)" :
+    sym == :rounding_errors      ? "Rounding errors prevent progress" :
+    sym == :too_many_iterations  ? "Too many algorithm iterations" :
+    sym == :too_many_evaluations ? "Too many evaluations of the objective function" :
+    unknown_status(sym)
+
+@noinline unknown_status(sym::Symbol) = "Unknown status `:$sym`"
+
 function Base.show(io::IO, ::MIME"text/plain", ctx::Context)
     @lock io begin
         print(io, "• Algorithm: Nelder-Mead Simplex method")
         print(io, "\n\n• Number of variables: ", ctx.n)
         print(io, "\n\n• Status: ")
-        print(io, summary(ctx.status), " (")
+        print(io, status_summary(ctx), " (")
         if issuccess(ctx)
             printstyled(io, "success"; color=:green)
         elseif ctx.status ∈ (:allocating, :initializing)
@@ -790,8 +768,7 @@ initial simplex size as a scalar or as an array of same shape as `x0` (see
 
 The result is a 4-tuple: `x` is the best solution found by the algorithm, `fx = f(x)` is the
 corresponding objective function value, `status` is the final status of the algorithm, and
-`nf` is the number of evaluations of the objective function. Call `issuccess(status)` to
-figure out whether algorithm has converged.
+`nf` is the number of evaluations of the objective function.
 
 In order to retrieve the complete algorithm state, call one of:
 
@@ -800,7 +777,8 @@ In order to retrieve the complete algorithm state, call one of:
 
 which yields a context `ctx` of type [`Simplex.Context`](@ref) that can be reused for
 solving other similar problems (saving allocations) and whose content is available by the
-`ctx.key` syntax (see [`Simplex.properties`](@ref)).
+`ctx.key` syntax (see [`Simplex.properties`](@ref)). Call `issuccess(ctx)` to figure out
+whether algorithm has converged.
 
 ## Keywords
 
