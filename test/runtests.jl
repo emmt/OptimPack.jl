@@ -3,6 +3,8 @@ module OptimPackTests
 using OptimPack
 using Test, Printf, Neutrals
 
+include("simplex-tests.jl")
+
 if false
 include("brent-tests.jl")
 include("rosenbrock.jl")
