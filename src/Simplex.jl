@@ -108,6 +108,7 @@ const default_sigma = 1//2 # default shrinkage factor, 0 < γ < 1
 # Fine tuning of the algorithm.
 const default_greedy_expansion   = false
 const default_recompute_centroid = false
+const default_evaluate_centroid = true
 
 # Stopping criteria.
 const default_maxiters = typemax(Int)
@@ -182,6 +183,8 @@ Algorithm variants:
 * `ctx.greedy_expansion`: Whether to apply the "greedy expansion" strategy.
 
 * `ctx.recompute_centroid`: Whether to recompute rather than update the centroid.
+
+* `ctx.evaluate_centroid`: Whether to evaluate function on the simplex centroid at the end.
 
 Stopping criterion:
 
@@ -330,6 +333,11 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
     # it from scratch.
     recompute_centroid::Bool
 
+    # When algorithm converged, it may be worth evaluating the objective function at the
+    # simplex centroid for some improvement. This flag indicates whether to perform this
+    # extra function evaluation.
+    evaluate_centroid::Bool
+
     # The inner constructor
     function Context{T,F,X}(::UndefInitializer, n::Integer; order::O = default_order,
                             kwds...) where {T<:AbstractFloat, F<:Number,
@@ -350,8 +358,8 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
         ctx = new{T,F,X,O}()
         ctx.order              = order
         ctx.n                  = n
-        ctx.costs              = Memory{F}(undef, n + 1)
-        ctx.flags              = Memory{Bool}(undef, n + 1)
+        ctx.costs              = Memory{F}(undef, n + 2)
+        ctx.flags              = Memory{Bool}(undef, n + 2)
         ctx.points             = Memory{X}(undef, n + 3)
         ctx.j_best             = 1
         ctx.j_worst            = 1
@@ -367,6 +375,7 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
         ctx.status             = :allocating
         ctx.greedy_expansion   = default_greedy_expansion
         ctx.recompute_centroid = default_recompute_centroid
+        ctx.evaluate_centroid  = default_evaluate_centroid
         reset!(ctx)
 
         # Apply options if any.
@@ -562,9 +571,12 @@ function instantiate!(ctx::Context, x0::AbstractArray)
     flags = ctx.flags
     length(points) == n + 3 || throw_assertion_failed(
         "invalid number of stored points, should be ", n + 3, ", got ", length(points))
-    length(costs) == n + 1 || throw_assertion_failed(
-        "invalid number of objective function values, should be ", n + 1, ", got ",
+    length(costs) == n + 2 || throw_assertion_failed(
+        "invalid number of objective function values, should be ", n + 2, ", got ",
         length(costs))
+    length(flags) == n + 2 || throw_assertion_failed(
+        "invalid number of objective function flags, should be ", n + 2, ", got ",
+        length(flags))
     length(x0) == n || throw_dimension_mismatch(
         "simplex vertices have ", n, " entries while given variables have ", length(x0))
     ndims(x0) == vertex_ndims(ctx) || throw_dimension_mismatch(
@@ -742,6 +754,10 @@ The following keywords may be used to tune the behavior of the algorithm:
   from scratch in `O(n²)` operations rather than update it in `O(n)` operations with `n` the
   number of variables. By default, `recompute_centroid = $default_recompute_centroid`.
 
+* `evaluate_centroid` indicates whether to evaluate the objective function at the centroid
+  of the final simplex for some improvement. By default, `evaluate_centroid_centroid =
+  $default_evaluate_centroid`.
+
 """
 function configure!(ctx::Context;
                     rho::Real                = ctx.rho,
@@ -753,7 +769,8 @@ function configure!(ctx::Context;
                     maxevals::Integer        = ctx.maxevals,
                     maxiters::Integer        = ctx.maxiters,
                     greedy_expansion::Bool   = ctx.greedy_expansion,
-                    recompute_centroid::Bool = ctx.recompute_centroid)
+                    recompute_centroid::Bool = ctx.recompute_centroid,
+                    evaluate_centroid::Bool  = ctx.evaluate_centroid)
     # Check settings.
     rho > zero(rho) || throw_bad_argument(
         "bad reflection factor, `rho > 0` must hold, got `rho = ", rho, "`")
@@ -783,6 +800,7 @@ function configure!(ctx::Context;
     ctx.maxevals           = maxevals
     ctx.greedy_expansion   = greedy_expansion
     ctx.recompute_centroid = recompute_centroid
+    ctx.evaluate_centroid  = evaluate_centroid
     return ctx
 end
 
@@ -908,7 +926,7 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
     t0 = time()
 
     # Evaluate the objective function at the vertices of the initial simplex.
-    @inbounds for j in eachindex(costs, flags)
+    @inbounds for j in 𝟙:n+1
         if restart || !flags[j]
             costs[j] = f(points[j])
             flags[j] = true
@@ -1096,7 +1114,15 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
         end
         ctx.iterations += 1
     end
-
+    if ctx.evaluate_centroid && ctx.evaluations < ctx.maxevals
+        costs[j_centroid] = f(points[j_centroid])
+        flags[j_centroid] = true
+        ctx.evaluations += 1
+        j_best = ctx.j_best
+        if costs[j_centroid] < costs[j_best]
+            ctx.j_best = j_centroid
+        end
+    end
     ctx.Δt = time() - t0
     return ctx
 end
@@ -1116,7 +1142,7 @@ nthroot(x::Real, n::Integer) =
 function Base.partialsort!(ctx::Context)
     f = ctx.costs
     j_first = firstindex(f)
-    j_last = lastindex(f)
+    j_last = lastindex(f) - 1 # NOTE do not account for the centroid cost
     j_worst = j_2nd_worst = j_best = j_first
     for j in j_first+1:j_last
         if is_better(ctx, f[j], f[j_best])
