@@ -129,20 +129,20 @@ The hierarchy of indexing types is:
 
 ```
 LoopStyle (abstract)
- ┃
- ┣╸ LoopStyleMap (abstract) -> LoopStyles.Map
- ┃
- ┣╸ LoopStyleDot (abstract) -> LoopStyles.Dot
- ┃
- ┣╸ LoopStyleGPU (abstract) -> LoopStyles.GPU
- ┃
- ┗╸ LoopStyleFor (abstract) -> LoopStyles.For
-     ┃
-     ┗╸ LoopStyleInBounds (abstract) -> LoopStyles.InBounds
-         ┃
-         ┗╸ LoopStyleSIMD (abstract) -> LoopStyles.SIMD
-             ┃
-             ┗╸ LoopStyleTurbo (abstract) -> LoopStyles.Turbo
+ │
+ ├╴LoopStyleMap (abstract) -> LoopStyles.Map
+ │
+ ├╴LoopStyleDot (abstract) -> LoopStyles.Dot
+ │
+ ├╴LoopStyleGPU (abstract) -> LoopStyles.GPU
+ │
+ ╰╴LoopStyleFor (abstract) -> LoopStyles.For
+    │
+    ╰╴LoopStyleInBounds (abstract) -> LoopStyles.InBounds
+       │
+       ╰╴LoopStyleSIMD (abstract) -> LoopStyles.SIMD
+          │
+          ╰╴LoopStyleTurbo (abstract) -> LoopStyles.Turbo
 ```
 
 The idea is to use abstract types for method signatures so that fallback method naturally

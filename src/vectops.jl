@@ -69,13 +69,16 @@ avoid_for(ls::LoopStyle) = ls
 avoid_for(ls::LoopStyleFor) = LoopStyles.Map()
 
 """
-    OptimPack.one_norm(x) -> s
+    OptimPack.one_norm([ls,] x) -> s
 
 Compute the 1-norm of `x` as if it is a *vector of reals*. The dimensions of `x` are ignored
 and complexes are considered as pairs of reals. The returned value is real-valued.
 
-See also [`OptimPack.two_norm`](@ref), [`OptimPack.sup_norm`](@ref), and
-[`OptimPack.inner`](@ref).
+If `x` is an array, optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style
+for the computations. If not specified, it is automatically inferred from the type of `x`.
+
+See also [`OptimPack.two_norm`](@ref), [`OptimPack.sup_norm`](@ref),
+[`OptimPack.inner`](@ref), and [`OptimPack.LoopStyle`](@ref).
 
 """
 @inline one_norm(x::Number) = abs(x)
@@ -110,14 +113,17 @@ end
 @eval $(recode!(one_norm_simd(), simd_to_inbounds...))
 
 """
-    OptimPack.two_norm(x) -> s
+    OptimPack.two_norm([ls,] x) -> s
 
 Compute the 2-norm (a.k.a. Euclidean norm) of `x` as if it is a *vector of reals*. The
 dimensions of `x` are ignored and complexes are considered as pairs of reals. The returned
 value is real-valued.
 
-See also [`OptimPack.one_norm`](@ref), [`OptimPack.sup_norm`](@ref), and
-[`OptimPack.inner`](@ref).
+If `x` is an array, optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style
+for the computations. If not specified, it is automatically inferred from the type of `x`.
+
+See also [`OptimPack.one_norm`](@ref), [`OptimPack.sup_norm`](@ref),
+[`OptimPack.inner`](@ref), and [`OptimPack.LoopStyle`](@ref).
 
 """
 @inline two_norm(x::Number) = abs(x)
@@ -150,13 +156,16 @@ end
 @eval $(recode!(two_norm_simd(), simd_to_inbounds...))
 
 """
-    OptimPack.sup_norm(x) -> s
+    OptimPack.sup_norm([ls,] x) -> s
 
 Compute the sup-norm of `x` as if it is a *vector of reals*. The dimensions of `x` are
 ignored and complexes are considered as pairs of reals. The returned value is real-valued.
 
+If `x` is an array, optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style
+for the computations. If not specified, it is automatically inferred from the type of `x`.
+
 See also https://en.wikipedia.org/wiki/Uniform_norm, [`OptimPack.one_norm`](@ref),
-[`OptimPack.sup_norm`](@ref), and [`OptimPack.inner`](@ref).
+[`OptimPack.sup_norm`](@ref), [`OptimPack.inner`](@ref), and [`OptimPack.LoopStyle`](@ref).
 
 """
 @inline sup_norm(x::Number) = abs(x)
@@ -196,14 +205,17 @@ end
 @inline fast_max(x::T, y::T) where {T<:Number} = (isnan(x)|(x > y)) ? x : y
 
 """
-    OptimPack.inner(x, y) -> s
+    OptimPack.inner([ls,] x, y) -> s
 
 Return the inner product (a.k.a. scalar product) of `x` and `y` considering them as *simple
 vectors of reals*. That is, `x` and `y` must have the same shapes and complexes are
 considered as pairs of reals. The result is real-valued.
 
-See also [`OptimPack.one_norm`](@ref), [`OptimPack.two_norm`](@ref), and
-[`OptimPack.sup_norm`](@ref).
+Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
+computations. If not specified, it is automatically inferred from the types of `x` and `y`.
+
+See also [`OptimPack.one_norm`](@ref), [`OptimPack.two_norm`](@ref),
+[`OptimPack.sup_norm`](@ref), and [`OptimPack.LoopStyle`](@ref).
 
 """
 @inline inner(x::Number, y::Number) = x*y
@@ -248,13 +260,17 @@ end
 @eval $(recode!(unsafe_inner_simd(), simd_to_inbounds...))
 
 """
-    OptimPack.scale!(x, α::Number) -> x
+    OptimPack.scale!([ls,] x, α::Number) -> x
 
 In-place scaling of `x` by `α`. Do `x[i] *= α` for all valid indices `i` and optimizing the
 computational burden depending on the specific values of the multiplier `α`. The convention
 is that `α` is considered as a *strong zero* if `iszero(α)` holds.
 
-See also [`OptimPack.xpby!`](@ref) and  [`OptimPack.axpby!`](@ref).
+Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
+computations. If not specified, it is automatically inferred from the type of `x`.
+
+See also [`OptimPack.xpby!`](@ref), [`OptimPack.axpby!`](@ref), and
+[`OptimPack.LoopStyle`](@ref).
 
 """
 function scale!(x::AbstractArray, α::Number)
@@ -268,13 +284,18 @@ function scale!(ls::LoopStyle, x::AbstractArray, α::Number)
 end
 
 """
-    OptimPack.scale!(dst, α, x) -> dst
+    OptimPack.scale!([ls,] dst, α, x) -> dst
 
 Compute `dst[i] = α*x[i]` for all valid indices `i` and optimizing the computational burden
 depending on the specific values of the multiplier `α`. The convention is that `α` is
 considered as a *strong zero* if `iszero(α)` holds.
 
-See also [`OptimPack.xpby!`](@ref) and  [`OptimPack.axpby!`](@ref).
+Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
+computations. If not specified, it is automatically inferred from the types of `dst` and
+`x`.
+
+See also [`OptimPack.xpby!`](@ref), [`OptimPack.axpby!`](@ref), and
+[`OptimPack.LoopStyle`](@ref).
 
 """
 function scale!(dst::AbstractArray, α::Number, x::AbstractArray)
@@ -325,13 +346,18 @@ end
 @eval $(recode!(unsafe_scale!_simd(), simd_to_inbounds...))
 
 """
-    OptimPack.xpby!(dst, x, β, y) -> dst
+    OptimPack.xpby!([ls,] dst, x, β, y) -> dst
 
 Compute `dst[i] = x[i] + β*y[i]` for all valid indices `i` and optimizing the computational
 burden depending on the specific values of the multiplier `β`. The convention is that `β` is
 considered as a *strong zero* if `iszero(β)` holds.
 
-See also [`OptimPack.axpby!`](@ref) and  [`OptimPack.scale!`](@ref).
+Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
+computations. If not specified, it is automatically inferred from the types of `dst`, `x`,
+and `y`.
+
+See also [`OptimPack.axpby!`](@ref) [`OptimPack.scale!`](@ref), and
+[`OptimPack.LoopStyle`](@ref).
 
 """
 function xpby!(dst::AbstractArray, x::AbstractArray, β::Number, y::AbstractArray)
@@ -390,12 +416,16 @@ end
 @eval $(recode!(unsafe_xpby!_simd(), simd_to_inbounds...))
 
 """
-    OptimPack.axpby!(dst, α, x, β, y) -> dst
+    OptimPack.axpby!([ls,] dst, α, x, β, y) -> dst
 
 Compute `dst[i] = α*x[i] + β*y[i]` for all valid indices `i` and optimizing the
 computational burden depending on the specific values of the multipliers `α` and `β`. The
 convention is that `α` is considered as a *strong zero* if `iszero(α)` holds and similarly
 for `β`.
+
+Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
+computations. If not specified, it is automatically inferred from the types of `dst`, `x`,
+and `y`.
 
 See also [`OptimPack.xpby!`](@ref) and  [`OptimPack.scale!`](@ref).
 
