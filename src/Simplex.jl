@@ -84,6 +84,7 @@ using ..OptimPack:
     axpby!,
     copy!,
     ordinal_suffix,
+    print_seconds,
     scale!,
     throw_bad_argument,
     throw_dimension_mismatch,
@@ -172,6 +173,8 @@ Counters:
 * `ctx.inside_contractions`: Number of inside contractions applied to the simplex.
 
 * `ctx.shrinkages`: Number of shrinkages applied to the simplex.
+
+* `ctx.Δt`: Elapsed time (seconds).
 
 Algorithm variants:
 
@@ -296,6 +299,8 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
     inside_contractions::Int
     outside_contractions::Int
     shrinkages::Int
+    Δt::Float64 # Elapsed time (seconds)
+
 
     # Simplex transform factors.
     rho::T   # reflection parameter, ρ > 0
@@ -451,6 +456,7 @@ function Base.show(io::IO, ::MIME"text/plain", ctx::Context)
             print(io, "\n\n• Counters")
             print(io, "\n  Iterations: ", ctx.iterations)
             print(io, "\n  f(x) calls: ", ctx.evaluations)
+            print(io, "\n  Elapsed time: "); print_seconds(io, ctx.Δt)
         end
     end
 end
@@ -513,6 +519,7 @@ function reset!(ctx::Context)
     ctx.inside_contractions  = 0
     ctx.outside_contractions = 0
     ctx.shrinkages           = 0
+    ctx.Δt                   = 𝟘
 
     # Reset the "linearized volume ratio".
     ctx.LVR = 𝟙
@@ -803,12 +810,11 @@ whether algorithm has converged.
   TotalMin`, the best function value is the smallest one while `NaN` and then `missing` are
   the worst values.
 
-* `observer` can be set with a user defined function which is called as `observer(ctx, f,
-  t)` at every iteration of the algorithm with `ctx` an instance of
-  [`Simplex.Context`](@ref), `f` the objective function, and `t` the elapsed time in
-  seconds. The observer may may return a symbolic status other than `:searching` to
-  cleanly terminate the algorithm (any other type of result returned by the observer is
-  silently ignored).
+* `observer` can be set with a user defined function which is called as `observer(ctx, f)`
+  at every iteration of the algorithm with `ctx` an instance of [`Simplex.Context`](@ref)
+  and `f` the objective function. The observer may return a symbolic status other than
+  `:searching` to cleanly terminate the algorithm (any other type of result returned by the
+  observer is silently ignored).
 
 Other possible keywords are configurable options of the *Simplex* method (see
 [`Simplex.configure!`](@ref)).
@@ -964,13 +970,14 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
         if observer != nothing
             # Call the user defined observer which may return another status which takes
             # priority.
-            let status = observer(ctx, f, time() - t0)
+            ctx.Δt = time() - t0
+            let status = observer(ctx, f)
                 if status isa Symbol
                     ctx.status = status
                 end
             end
         end
-        ctx.status == :searching || return ctx
+        ctx.status == :searching || break
 
         # Update or recompute the centroid of the simplex vertices but the worst one.
         if must_recompute
@@ -1082,6 +1089,9 @@ function solve!(ctx::Context{T,F}, f; observer=nothing, restart::Bool=false, kwd
         end
         ctx.iterations += 1
     end
+
+    ctx.Δt = time() - t0
+    return ctx
 end
 
 # See https://github.com/JuliaLang/julia/issues/47565
@@ -1212,7 +1222,7 @@ function new_point!(dst::AbstractArray{T,N}, alpha::Real,
     return dst
 end
 
-function simple_observer(ctx::Context)
+function simple_observer(ctx::Context, f)
     if ctx.iterations == 0
         println("#   ITER   EVAL     LVR              F_BEST                F_WORST")
         println("# ------ ------ ----------- ----------------------- -----------------------")

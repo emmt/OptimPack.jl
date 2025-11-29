@@ -25,7 +25,7 @@ using OptimPack: Problems
         @test abs(c.f_best - Problems.f_best(f)) < abs(f1 - Problems.f_best(f))
         # Test observer.
         Simplex.solve!(c, f, x0, 0.5;
-                       observer = (c,f,t) -> c.iterations < 13 ? c.status : :stop13)
+                       observer = (c,f) -> c.iterations < 13 ? c.status : :stop13)
         @test c.status == :stop13
         @test c.iterations == 13
         # Test show.
