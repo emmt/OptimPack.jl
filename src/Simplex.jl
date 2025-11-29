@@ -67,7 +67,6 @@ using TypeUtils: @public
         build_simplex!,
         configure!,
         instantiate!,
-        properties,
         solve,
         solve!
 
@@ -117,6 +116,106 @@ const default_xtol     = 1e-5
 # Default is to minimize.
 const default_order = TotalMin
 
+const _DOC_PROPERTIES = """
+Vertices and objective function values:
+
+* `ctx.n`: Number of variables of the problem.
+
+* `ctx.points`: All points used by the algorithm.
+
+* `ctx.vertices`: Vertices of the simplex.
+
+* `ctx.costs`: Objective function at the vertices of the simplex.
+
+* `ctx.order`: Ordering of objective function values.
+
+* `ctx.x_best`: Best point (i.e. 1st one according to ordering).
+
+* `ctx.f_best`: Objective function at the best point.
+
+* `ctx.j_best`: Index of the best point.
+
+* `ctx.x_worst`: Worst point.
+
+* `ctx.f_worst`: Objective function at the worst point.
+
+* `ctx.j_worst`: Index of the worst point.
+
+* `ctx.x_2nd_worst`: Second worst point.
+
+* `ctx.f_2nd_worst`: Objective function at the second worst point.
+
+* `ctx.j_2nd_worst`: Index of the second worst point.
+
+Simplex transform factors:
+
+* `ctx.rho`: Reflection factor, ρ > 0.
+
+* `ctx.chi`: Expansion factor, χ > 1.
+
+* `ctx.gamma`: Contraction factor, 0 < γ < 1.
+
+* `ctx.sigma`: Shrinkage factor, 0 < σ < 1.
+
+Counters:
+
+* `ctx.iterations`: Number of algorithm iterations.
+
+* `ctx.evaluations`: Number of evaluations of the objective function.
+
+* `ctx.reflections`: Number of reflections applied to the simplex.
+
+* `ctx.expansions`: Number of expansions applied to the simplex.
+
+* `ctx.outside_contractions`: Number of outside contractions applied to the simplex.
+
+* `ctx.inside_contractions`: Number of inside contractions applied to the simplex.
+
+* `ctx.shrinkages`: Number of shrinkages applied to the simplex.
+
+Algorithm variants:
+
+* `ctx.greedy_expansion`: Whether to apply the "greedy expansion" strategy.
+
+* `ctx.recompute_centroid`: Whether to recompute rather than update the centroid.
+
+Stopping criterion:
+
+* `ctx.ftol`: Relative tolerance for the convergence in the objective function.
+
+* `ctx.xtol`: Relative tolerance for the convergence in the variables.
+
+* `ctx.maxiters`: Maximum number of allowed algorithm iterations.
+
+* `ctx.maxevals`: Maximum number of allowed evaluations of the objective function.
+
+* `ctx.LVR`: Linearized Volume Ratio of the simplex.
+
+* `ctx.status`: Status of the algorithm.
+
+The status of the algorithm is one of`⁽¹⁾`:
+
+* `:initializing` if the algorithm has not yet started;
+
+* `:searching` if the algorithm has not yet converged;
+
+* `:convergence_in_f` if the algorithm has converged in the objective function;
+
+* `:convergence_in_x` if the algorithm has converged in the variables;
+
+* `:rounding_errors` if rounding errors prevent further progress;
+
+* `:too_many_evaluations` if the maximum number of calls for the objective function
+  have been exceeded;
+
+* `:too_many_iterations` if the maximum number of algorithm iterations have been
+  exceeded.
+
+`⁽¹⁾` The status may also be set to another symbolic value by the observer if the caller
+opts to this possibility. During the search, the algorithm is stopped if its status becomes
+different from `:searching`.
+"""
+
 """
     ctx = Simplex.Context{T,F,X}(undef, n; order::Ordering=TotalMin, kwds...)
 
@@ -136,6 +235,20 @@ solved with the context by:
 with `f` the objective function, `x0` initial variables, and `args...` additional arguments
 to build the initial simple.
 
+## Properties
+
+The context `ctx` of Nelder-Mead's *Simplex* method has a number of properties (listed
+below) that can be queried by the `ctx.key` syntax.
+
+!!! warning
+    All properties should be considered as being **read-only** by the end-user. Directly
+    setting a property may break the assumptions made by the algorithm or the consistency of
+    the context. Call [`Simplex.configure!`](@ref) to safely change the configurable
+    options.
+
+$(_DOC_PROPERTIES)
+
+
 ## See also
 
 [`simplex`](@ref) for a description of the Nelder-Mead *Simplex* method.
@@ -143,8 +256,6 @@ to build the initial simple.
 [`Simplex.configure!`](@ref) for allowed keywords `kwds...`.
 
 [`Simplex.solve!`](@ref) for solving an optimization problem with a given context.
-
-[`Simplex.properties`](@ref) for the properties of a given context.
 
 """
 mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
@@ -258,6 +369,31 @@ mutable struct Context{T<:AbstractFloat,F<:Number,X<:AbstractArray,O<:Ordering}
         return ctx
     end
 end
+
+# Properties.
+
+const properties = let v = Set{Symbol}(), i = 1
+    # Extract the list of properties from the docstring.
+    while true
+        m = match(r"^ *\* *`ctx\.(\w+)`:"m, _DOC_PROPERTIES, i)
+        m === nothing && break
+        push!(v, Symbol(m.captures[1]))
+        i = last(m.offsets) + 1
+    end
+    Tuple(sort(collect(v))) # result of this block
+end
+
+Base.propertynames(ctx::Context) = properties
+
+Base.getproperty(ctx::Context, key::Symbol) = _getproperty(ctx, Val(key))
+_getproperty(ctx::Context, ::Val{key}) where {key} = getfield(ctx, key)
+_getproperty(ctx::Context, ::Val{:x_best})      = ctx.points[ctx.j_best]
+_getproperty(ctx::Context, ::Val{:f_best})      = ctx.costs[ctx.j_best]
+_getproperty(ctx::Context, ::Val{:x_worst})     = ctx.points[ctx.j_worst]
+_getproperty(ctx::Context, ::Val{:f_worst})     = ctx.costs[ctx.j_worst]
+_getproperty(ctx::Context, ::Val{:x_2nd_worst}) = ctx.points[ctx.j_2nd_worst]
+_getproperty(ctx::Context, ::Val{:f_2nd_worst}) = ctx.costs[ctx.j_2nd_worst]
+_getproperty(ctx::Context, ::Val{:vertices})    = @inbounds view(ctx.points, 1:ctx.n+1)
 
 # Traits.
 float_type(x::Context) = float_type(typeof(x))
@@ -628,127 +764,6 @@ function configure!(ctx::Context;
     ctx.recompute_centroid = recompute_centroid
     return ctx
 end
-
-const _PROPERTIES_DOCSTRING = """
-# Properties of Simplex context
-
-The context `ctx` of Nelder-Mead's *Simplex* method has a number of properties (listed
-below) that can be queried by the `ctx.key` syntax.
-
-!!! warning
-    All properties should be considered as being **read-only** by the end-user. Directly
-    setting a property may break the assumptions made by the algorithm or the consistency of
-    the context. Call [`Simplex.configure!`](@ref) to safely change the configurable
-    options.
-
-## Vertices and objective function values
-
-| Property                   | Description                                        |
-|:---------------------------|:---------------------------------------------------|
-| `ctx.n`                    | Number of variables of the problem                 |
-| `ctx.points`               | All points used by the algorithm                   |
-| `ctx.vertices`             | Vertices of the simplex                            |
-| `ctx.costs`                | Objective function at the vertices of the simplex  |
-| `ctx.order`                | Ordering of objective function values              |
-|                            |                                                    |
-| `ctx.x_best`               | Best point (i.e. 1st one according to ordering)    |
-| `ctx.f_best`               | Objective function at the best point               |
-| `ctx.j_best`               | Index of the best point                            |
-|                            |                                                    |
-| `ctx.x_worst`              | Worst point                                        |
-| `ctx.f_worst`              | Objective function at the worst point              |
-| `ctx.j_worst`              | Index of the worst point                           |
-|                            |                                                    |
-| `ctx.x_2nd_worst`          | Second worst point                                 |
-| `ctx.f_2nd_worst`          | Objective function at the second worst point       |
-| `ctx.j_2nd_worst`          | Index of the second worst point                    |
-
-## Simplex transform factors
-
-| Property                   | Description                                        |
-|:---------------------------|:---------------------------------------------------|
-| `ctx.rho`                  | Reflection factor, ρ > 0                           |
-| `ctx.chi`                  | Expansion factor, χ > 1                            |
-| `ctx.gamma`                | Contraction factor, 0 < γ < 1                      |
-| `ctx.sigma`                | Shrinkage factor, 0 < σ < 1                        |
-
-## Counters
-
-| Property                   | Description                                           |
-|:---------------------------|:------------------------------------------------------|
-| `ctx.iterations`           | Number of algorithm iterations                        |
-| `ctx.evaluations`          | Number of evaluations of the objective function       |
-| `ctx.reflections`          | Number of reflections applied to the simplex          |
-| `ctx.expansions`           | Number of expansions applied to the simplex           |
-| `ctx.outside_contractions` | Number of outside contractions applied to the simplex |
-| `ctx.inside_contractions`  | Number of inside contractions applied to the simplex  |
-| `ctx.shrinkages`           | Number of shrinkages applied to the simplex           |
-
-## Algorithm variants
-
-| Property                   | Description                                          |
-|:---------------------------|:-----------------------------------------------------|
-| `ctx.greedy_expansion`     | Whether to apply the "greedy expansion" strategy     |
-| `ctx.recompute_centroid`   | Whether to recompute rather than update the centroid |
-
-## Stopping criterion
-
-| Property                   | Description                                                      |
-|:---------------------------|:-----------------------------------------------------------------|
-| `ctx.ftol`                 | Relative tolerance for the convergence in the objective function |
-| `ctx.xtol`                 | Relative tolerance for the convergence in the variables          |
-| `ctx.maxiters`             | Maximum number of allowed algorithm iterations                   |
-| `ctx.maxevals`             | Maximum number of allowed evaluations of the objective function  |
-| `ctx.LVR`                  | Linearized Volume Ratio of the simplex                           |
-| `ctx.status`               | Status of the algorithm                                          |
-
-The status of the algorithm is one of`⁽¹⁾`:
-
-* `:initializing` if the algorithm has not yet started;
-
-* `:searching` if the algorithm has not yet converged;
-
-* `:convergence_in_f` if the algorithm has converged in the objective function;
-
-* `:convergence_in_x` if the algorithm has converged in the variables;
-
-* `:rounding_errors` if rounding errors prevent further progress;
-
-* `:too_many_evaluations` if the maximum number of calls for the objective function
-  have been exceeded;
-
-* `:too_many_iterations` if the maximum number of algorithm iterations have been
-  exceeded.
-
-`⁽¹⁾` The status may also be set to another symbolic value by the observer if the caller
-opts to this possibility. During the search, the algorithm is stopped if its status becomes
-different from `:searching`.
-
-"""
-
-# Extract the list of properties from their docstring.
-const properties = let v = Set{Symbol}(), i = 1
-    while true
-        m = match(r"^ *\| *`ctx\.(\w+)` *\| *(.*?) *\| *$()"m, _PROPERTIES_DOCSTRING, i)
-        m === nothing && break
-        push!(v, Symbol(m.captures[1]))
-        i = last(m.offsets) + 1
-    end
-    Tuple(sort(collect(v))) # result of this block
-end
-@doc _PROPERTIES_DOCSTRING properties
-
-Base.propertynames(ctx::Context) = properties
-
-Base.getproperty(ctx::Context, key::Symbol) = _getproperty(ctx, Val(key))
-_getproperty(ctx::Context, ::Val{key}) where {key} = getfield(ctx, key)
-_getproperty(ctx::Context, ::Val{:x_best})      = ctx.points[ctx.j_best]
-_getproperty(ctx::Context, ::Val{:f_best})      = ctx.costs[ctx.j_best]
-_getproperty(ctx::Context, ::Val{:x_worst})     = ctx.points[ctx.j_worst]
-_getproperty(ctx::Context, ::Val{:f_worst})     = ctx.costs[ctx.j_worst]
-_getproperty(ctx::Context, ::Val{:x_2nd_worst}) = ctx.points[ctx.j_2nd_worst]
-_getproperty(ctx::Context, ::Val{:f_2nd_worst}) = ctx.costs[ctx.j_2nd_worst]
-_getproperty(ctx::Context, ::Val{:vertices})    = @inbounds view(ctx.points, 1:ctx.n+1)
 
 #-----------------------------------------------------------------------------------------
 # ALGORITHM
