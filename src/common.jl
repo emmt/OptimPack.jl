@@ -27,6 +27,9 @@ end
 @noinline throw_dimension_mismatch(msg::AbstractString) = throw(DimensionMismatch(msg))
 @noinline throw_dimension_mismatch(args...) = throw_dimension_mismatch(string(args...))
 
+@noinline throw_incompatible_axes() = throw(DimensionMismatch(
+    "array arguments have incompatible axes"))
+
 @noinline throw_assertion_failed(msg::AbstractString) = throw(AssertionError(msg))
 @noinline throw_assertion_failed(args...) = throw_assertion_failed(string(args...))
 

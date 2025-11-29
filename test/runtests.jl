@@ -3,10 +3,18 @@ module OptimPackTests
 using OptimPack
 using Test, Printf, Neutrals
 
+include("vops-tests.jl")
+VectOpsTests.runtests()
+
+include("fzero-tests.jl")
+FzeroTests.runtests(; verb=false)
+
+include("fmin-tests.jl")
+FminTests.runtests(; verb=false)
+
 include("simplex-tests.jl")
 
 if false
-include("brent-tests.jl")
 include("rosenbrock.jl")
 include("spg2-tests.jl")
 end

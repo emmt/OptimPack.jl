@@ -71,17 +71,28 @@ export
 
 # Public but not exported API.
 using TypeUtils: @public
-@public Problems configure! solve! restart! iterate!
+@public Problems
+@public configure! iterate! solve! restart!
 
-using LinearAlgebra, Printf
+# Public but not exported API for vector-like operations.
+@public adapt_multiplier_precision @dispatch_on_multiplier
+@public recode recode!
+@public one_norm two_norm sup_norm inner
+@public scale! xpby! axpby!
+
+using LinearAlgebra
+using Neutrals
+using Printf
+using TypeUtils
+using Unitful
+using Unitful: AbstractQuantity
 
 using Base:
     @propagate_inbounds,
     OneTo,
     axes1,
     elsize,
-    tail,
-    throw_boundserror
+    tail
 
 import LinearAlgebra: issuccess
 
@@ -89,7 +100,15 @@ if !isdefined(Base, :get_extension)
     using Requires
 end
 
+# TODO LoopStyles could be an independent package.
+include("LoopStyles.jl")
+using .LoopStyles
+
+include("macros.jl")
+include("types.jl")
 include("common.jl")
+
+include("vectops.jl")
 
 include("Brent.jl")
 import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero

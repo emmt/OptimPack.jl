@@ -80,14 +80,16 @@ using QuickHeaps: TotalMin, TotalMax
 using TypeUtils
 using ..OptimPack
 using ..OptimPack:
+    Memory,
+    adapt_multiplier_precision,
+    axpby!,
+    copy!,
     ordinal_suffix,
+    scale!,
     throw_bad_argument,
     throw_dimension_mismatch,
-    throw_assertion_failed
-
-if !isdefined(@__MODULE__, :Memory)
-    const Memory{T} = Vector{T}
-end
+    throw_assertion_failed,
+    xpby!
 
 const VectorOfArrays{T,N} = AbstractVector{<:AbstractArray{T,N}}
 
@@ -1138,7 +1140,7 @@ function compute_centroid!(ctx::Context)
             copy!(centroid, points[j])
             init = false
         else
-            add!(centroid, points[j])
+            xpby!(centroid, centroid, 𝟙, points[j]) # centroid += points[j]
         end
     end
     scale!(centroid, 1//n)
@@ -1163,43 +1165,12 @@ function update_centroid!(ctx::Context, j_worst_old::Int)
     return nothing
 end
 
-# Copy values.TODO Use OptimPack/LazyAlgebra vcopy!
-copy!(ctx::Context, jdst::Int, jsrc::Int) = copy!(ctx.points[jdst], ctx.points[jsrc])
-function copy!(dst::AbstractArray{D,N},
-               src::AbstractArray{S,N}) where {D,S,N}
-    if dst !== src
-        axes(dst) == axes(src) || throw_dimension_mismatch("arrays have different axes")
-        @inbounds for i in eachindex(dst, src)
-            dst[i] = src[i]
-        end
-    end
-    return dst
-end
+# Copy vertices.
+OptimPack.copy!(ctx::Context, jdst::Int, jsrc::Int) =
+    copy!(ctx.points[jdst], ctx.points[jsrc])
 
-# In-place addition.TODO Use axpby!
-add!(ctx::Context, jdst::Int, jsrc::Int) = add!(ctx.points[jdst], ctx.points[jsrc])
-function add!(dst::AbstractArray{D,N},
-              src::AbstractArray{S,N}) where {D,S,N}
-    axes(dst) == axes(src) || throw_dimension_mismatch("arrays have different axes")
-    @inbounds for i in eachindex(dst, src)
-        dst[i] += src[i]
-    end
-    return dst
-end
-
-# Scaling of values. TODO Use OptimPack/LazyAlgebra vscale!.
-scale!(ctx::Context, j::Int, s::Real) = scale!(ctx.points[j], s)
-function scale!(A::AbstractArray, s::Real)
-    if iszero(s)
-        fill!(A, zero(eltype(A)))
-    elseif !isone(s)
-        s = convert_multiplier(eltype(A), s)
-        @inbounds for i in eachindex(A)
-            A[i] *= s
-        end
-    end
-    return A
-end
+# Scaling of vertices.
+OptimPack.scale!(ctx::Context, j::Int, s::Real) = scale!(ctx.points[j], s)
 
 """
     Simplex.new_point!(dst, alpha, pnt, org) -> dst
@@ -1217,18 +1188,14 @@ new_point!(ctx::Context, jdst::Int, alpha::Real, jpnt::Int, jcen::Int) =
 function new_point!(dst::AbstractArray{T,N}, alpha::Real,
                     pnt::AbstractArray{T,N},
                     org::AbstractArray{T,N}) where {T,N}
-    alpha = convert_multiplier(T, alpha)
     axes(dst) == axes(org) == axes(pnt) || throw_dimension_mismatch(
         "arrays must have the same axes")
-    @inbounds for i in eachindex(dst, pnt, org)
+    alpha = adapt_multiplier_precision(T, alpha)
+    @inbounds @simd for i in eachindex(dst, pnt, org)
         dst[i] = org[i] + alpha*(pnt[i] - org[i])
     end
     return dst
 end
-
-# Convert a scalar multiplier `s` to the correct floating-point type given the type `E` of
-# the elements to be multiplied by `s`. TODO Use LazyAlgebra/OptimPack version of this.
-convert_multiplier(::Type{E}, s::Real) where {E<:Number} = as(floating_point_type(E), s)
 
 function simple_observer(ctx::Context)
     if ctx.iterations == 0
@@ -1250,5 +1217,4 @@ function simple_observer(ctx::Context)
     nothing
 end
 
-
-                                                                      end # module
+end # module
