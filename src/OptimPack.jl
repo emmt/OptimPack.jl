@@ -103,6 +103,15 @@ end
 # TODO LoopStyles could be an independent package.
 include("LoopStyles.jl")
 using .LoopStyles
+@public LoopStyle,
+        LoopStyles,
+        LoopStyleDot,
+        LoopStyleFor,
+        LoopStyleGPU,
+        LoopStyleInBounds,
+        LoopStyleMap,
+        LoopStyleSIMD,
+        LoopStyleTurbo
 
 include("macros.jl")
 include("types.jl")
