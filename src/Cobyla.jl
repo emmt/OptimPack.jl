@@ -27,6 +27,7 @@ using ..Powell:
 
 using ...OptimPack:
     OptimPack,
+    copy_array,
     throw_assertion_failed,
     throw_bad_argument,
     throw_dimension_mismatch
@@ -214,7 +215,17 @@ The following keywords are available:
   Hennart), Kluwer Academic Publishers, pp. 51-67 (1994).
 
 """
-function cobyla end
+function cobyla(fc, x0::AbstractArray{<:Real}, dims::Integer...; kwds...)
+    return cobyla(fc, x0, dims; kwds...)
+end
+
+function cobyla(fc, x0::AbstractArray{<:Real},
+                       dims::Tuple{Vararg{Integer}}; kwds...)
+    x = copy_array(Cdouble, x0)
+    c = Array{Cdouble}(undef, dims)
+    return cobyla!(fc, x, c; kwds...)
+end
+
 
 """
     using OptimPack_jll
@@ -226,7 +237,11 @@ variables; on return, `x` is overwritten by the solution. See [`cobyla`](@ref) f
 description of the algorithm and available keywords.
 
 """
-function cobyla! end
+function cobyla!(fc, x::AbstractArray, c::AbstractArray; kwds...)
+    x isa DenseArray{Cdouble} || throw_bad_argument("`x` must be a `DenseArray{$Cdouble}`")
+    c isa DenseArray{Cdouble} || throw_bad_argument("`c` must be a `DenseArray{$Cdouble}`")
+    error("`OptimPack_jll` is not loaded, call `using OptimPack_jll` first")
+end
 
 # TODO doc. needed
 for func in (:maximize, :minimize)

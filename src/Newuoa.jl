@@ -21,6 +21,7 @@ using CEnum
 
 using ..Powell:
     Powell,
+    copy_array,
     default_maxevals,
     default_npt,
     rho_reduction
@@ -183,7 +184,10 @@ The following keywords are available:
   55-297 (2006).
 
 """
-function newuoa end
+function newuoa(f, x0::AbstractArray{<:Real}; kwds...)
+    x = copy_array(Cdouble, x0)
+    return newuoa!(f, x; kwds...)
+end
 
 """
     using OptimPack_jll
@@ -195,7 +199,10 @@ return, `x` is overwritten by the solution. See [`newuoa`](@ref) for a descripti
 algorithm and available keywords.
 
 """
-function newuoa! end
+function newuoa!(f, x::AbstractArray; kwds...)
+    x isa DenseArray{Cdouble} || throw_bad_argument("`x` must be a `DenseArray{$Cdouble}`")
+    error("`OptimPack_jll` is not loaded, call `using OptimPack_jll` first")
+end
 
 # TODO doc. needed
 for func in (:maximize, :minimize)

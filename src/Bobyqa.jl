@@ -306,7 +306,10 @@ The following keywords are available:
   Theoretical Physics, Cambridge, England (2009).
 
 """
-function bobyqa end
+function bobyqa(f, x0::AbstractVector{<:Real}; kwds...)
+    x = copy_array(Cdouble, x0)
+    return bobyqa!(f, x; kwds...)
+end
 
 """
     using OptimPack_jll
@@ -318,8 +321,12 @@ specifies the initial variables; on return, `x` is overwritten by the solution. 
 [`bobyqa`](@ref) for a description of the algorithm and available keywords.
 
 """
-function bobyqa! end
+function bobyqa!(f, x::AbstractArray; kwds...)
+    x isa DenseArray{Cdouble} || throw_bad_argument("`x` must be a `DenseArray{$Cdouble}`")
+    error("`OptimPack_jll` is not loaded, call `using OptimPack_jll` first")
+end
 
+# TODO doc. needed
 for func in (:maximize, :minimize)
     func! = Symbol(func,"!")
     @eval begin

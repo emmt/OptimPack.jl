@@ -178,17 +178,6 @@ function OptimPack.iterate!(ctx::Cobyla.Context, fx::Number,
     return status
 end
 
-function Cobyla.cobyla(fc, x0::AbstractArray{<:Real}, dims::Integer...; kwds...)
-    return Cobyla.cobyla(fc, x0, dims; kwds...)
-end
-
-function Cobyla.cobyla(fc, x0::AbstractArray{<:Real},
-                       dims::Tuple{Vararg{Integer}}; kwds...)
-    x = copy_array(Cdouble, x0)
-    c = Array{Cdouble}(undef, dims)
-    return Cobyla.cobyla!(fc, x, c; kwds...)
-end
-
 function Cobyla.cobyla!(fc, x::DenseArray{Cdouble}, c::DenseArray{Cdouble}; kwds...)
     ctx = Cobyla.Context(x, c; kwds...)
     @assert ctx.constr === c
@@ -208,11 +197,6 @@ function OptimPack.solve!(ctx::Bobyqa.Context, f, x::DenseArray{Cdouble}; kwds..
         ctx.verbose, ctx.maxevals, getfield(ctx, :work))
     setfield!(ctx, :status, status)
     return ctx, x
-end
-
-function Bobyqa.bobyqa(f, x0::AbstractVector{<:Real}; kwds...)
-    x = copy_array(Cdouble, x0)
-    return Bobyqa.bobyqa!(f, x; kwds...)
 end
 
 function Bobyqa.bobyqa!(f, x::DenseVector{Cdouble}; kwds...)
@@ -292,11 +276,6 @@ end
 function Base.reset(ctx::Newuoa.Context)
     newuoa_restart(ctx)
     return ctx
-end
-
-function Newuoa.newuoa(f, x0::AbstractArray{<:Real}; kwds...)
-    x = copy_array(Cdouble, x0)
-    return Newuoa.newuoa!(f, x; kwds...)
 end
 
 function Newuoa.newuoa!(f, x::DenseArray{Cdouble}; kwds...)
