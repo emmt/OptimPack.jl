@@ -18,11 +18,13 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [weakdeps]
 CUTEst = "1b53aba6-35b6-5f92-a507-53c67d53f819"
+LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
 OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c"
 
 [extensions]
 OptimPackCUTEstExt = "CUTEst"
+OptimPackLoopVectorizationExt = "LoopVectorization"
 OptimPackOptimPack_jllExt = "OptimPack_jll"
 
 [compat]
@@ -30,6 +32,7 @@ ArrayTools = "0.3.2"
 CEnum = "0.5.0"
 CUTEst = "1.3.6"
 LazyAlgebra = "0.2.7"
+LoopVectorization = "0.12.173"
 NLPModels = "0.22.0"
 Neutrals = "0.3.4"
 OptimPack_jll = "3.3.1"

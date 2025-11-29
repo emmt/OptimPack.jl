@@ -229,7 +229,7 @@ inner(x::Complex, y::Number) = error(
 
 # Automatically infer loop-style.
 function inner(x::AbstractArray, y::AbstractArray)
-    return inner(LoopStyle(x, y), x, y)
+    return inner(avoid_turbo(LoopStyle(x, y)), x, y)
 end
 
 function inner(ls::LoopStyle, x::AbstractArray, y::AbstractArray)

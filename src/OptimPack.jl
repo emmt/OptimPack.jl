@@ -144,6 +144,8 @@ function __init__()
         # Extend methods when other packages are loaded.
         @require CUTEst = "1b53aba6-35b6-5f92-a507-53c67d53f819" include(
             "../ext/OptimPackCUTEstExt.jl")
+        @require LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890" include(
+            "../ext/OptimPackLoopVectorizationExt.jl")
         @require OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c" include(
             "../ext/OptimPackOptimPack_jllExt.jl")
     end
