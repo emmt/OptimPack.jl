@@ -71,7 +71,7 @@ export
 
 # Public but not exported API.
 using TypeUtils: @public
-@public Problems
+@public Bounds Problems
 @public configure! iterate! solve! restart!
 
 # Public but not exported API for vector-like operations.
@@ -142,8 +142,10 @@ include("Problems.jl")
 function __init__()
     @static if !isdefined(Base, :get_extension)
         # Extend methods when other packages are loaded.
+        @require CUTEst = "1b53aba6-35b6-5f92-a507-53c67d53f819" include(
+            "../ext/OptimPackCUTEstExt.jl")
         @require OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c" include(
-            "../ext/OptimPackOptimPack_jll.jl")
+            "../ext/OptimPackOptimPack_jllExt.jl")
     end
 end
 

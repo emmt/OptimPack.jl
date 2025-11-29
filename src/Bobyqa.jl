@@ -71,7 +71,7 @@ end
 
 Base.getproperty(ctx::Context, key::Symbol) =
     key === :fbest ? getfield(ctx, :work)[1] :
-    key === :evals ? getfield(ctx, :work)[2] |> Int :
+    key === :evals ? round(Int, getfield(ctx, :work)[2]) : # FIXME
     key === :n     ? length(getfield(ctx, :scale)) :
     key === :shape ? size(getfield(ctx, :scale)) :
     key !== :work  ? getfield(ctx, key) : KeyError(key)

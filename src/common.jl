@@ -34,6 +34,21 @@ function print_seconds(io::IO, t::Real)
     end
 end
 
+
+#----------------------------------------------------------------------- Bound constraints -
+
+(B::Bounds)(x::AbstractArray) = proj!(x, box.lower, box.upper)
+
+function proj!(x::AbstractArray, l::AbstractArray, u::AbstractArray)
+    axes(x) == axes(l) == axes(u) || throw_incompatible_axes()
+    @inbounds @simd for i in eachindex(x, l, u)
+        x[i] = clamp(x[i], l[i], u[i])
+    end
+    return x
+end
+
+#---------------------------------------------------------------------------------- Errors -
+
 @noinline throw_bad_argument(msg::AbstractString) = throw(ArgumentError(msg))
 @noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
 
