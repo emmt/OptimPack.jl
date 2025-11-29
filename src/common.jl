@@ -34,6 +34,20 @@ function print_seconds(io::IO, t::Real)
     end
 end
 
+# `t = tiny(x)` is the smallest strictly positive value such that `x ± t` is not `x`.
+function tiny(x::Number)
+    T = get_precision(x)
+    isconcretetype(T) || throw_bad_argument("value of type `$(typeof(x))` is not concrete floating-point")
+    isfinite(x) || throw_bad_argument("value $x is not finite")
+    abs_x = abs(x)
+    return abs_x > zero(abs_x) ? abs_x*eps(T) : oneunit(x)*nextfloat(zero(T))
+end
+
+if !isdefined(Base, :isnothing)
+    isnothing(x::Nothing) = true
+    isnothing(x::Any) = false
+end
+issomething(x::Any) = !isnothing(x)
 
 #----------------------------------------------------------------------- Bound constraints -
 
