@@ -10,7 +10,7 @@ using OptimPack: Problems
         f = Problems.Rosenbrock(n=2)
         x0 = Problems.x_init(f)
         # Solve the problem with modest precision.
-        c = @inferred simplex(Val(:context), f, x0, 0.5; xtol=1e-5, maxevals=1000)
+        c = @inferred simplex(f, x0, 0.5; xtol=1e-5, maxevals=1000)
         @test issuccess(c)
         @test c.x_best ≈ Problems.x_best(f) rtol=1e-5
         @test c.f_best ≈ Problems.f_best(f) atol=1e-10

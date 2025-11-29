@@ -75,6 +75,7 @@ using Base: @propagate_inbounds
 using LinearAlgebra
 using Neutrals
 using Printf
+using QuickHeaps
 using QuickHeaps: TotalMin, TotalMax
 using TypeUtils
 using ..OptimPack
@@ -434,7 +435,19 @@ status_summary(sym::Symbol) =
 
 @noinline unknown_status(sym::Symbol) = "Unknown status `:$sym`"
 
-function Base.show(io::IO, ::MIME"text/plain", ctx::Context)
+const MinOrdering = Union{QuickHeaps.TotalMinOrdering,
+                          Base.Order.ReverseOrdering{QuickHeaps.TotalMaxOrdering},
+                          Base.Order.ForwardOrdering}
+
+const MaxOrdering = Union{QuickHeaps.TotalMaxOrdering,
+                          Base.Order.ReverseOrdering{QuickHeaps.TotalMinOrdering},
+                          Base.Order.ReverseOrdering{Base.Order.ForwardOrdering}}
+
+_show(io::IO, order::MinOrdering) = print(io, "min.")
+_show(io::IO, order::MaxOrdering) = print(io, "max.")
+_show(io::IO, order::Base.Order.Ordering) = print(io, order)
+
+function Base.show(io::IO, mime::MIME"text/plain", ctx::Context)
     @lock io begin
         print(io, "• Algorithm: Nelder-Mead Simplex method")
         print(io, "\n\n• Number of variables: ", ctx.n)
@@ -450,6 +463,7 @@ function Base.show(io::IO, ::MIME"text/plain", ctx::Context)
         print(io, ")")
         if ctx.evaluations > 0
             print(io, "\n\n• Candidate solution:")
+            print(io, "\n  Ordering: "); _show(io, ctx.order)
             print(io, "\n  Best f(x): ", ctx.f_best)
             print(io, "\n  maxⱼₖ|f(xⱼ) - f(xₖ)|: ", abs(ctx.f_best - ctx.f_worst))
             print(io, "\n  Linearized volume ratio: ", ctx.LVR)
@@ -781,8 +795,8 @@ end
 is_better(ctx::Context, fa, fb) = Base.lt(ctx.order, fa, fb)
 
 """
-    simplex(f, x0, args...; kwds...) -> x, fx, status, nf
-    Simplex.solve(f, x0, args...; kwds...) -> x, fx, status, nf
+    simplex(f, x0, args...; kwds...) -> ctx::Simplex.Context
+    Simplex.solve(f, x0, args...; kwds...) -> ctx::Simplex.Context
 
 Optimize the objective function `f` by the Nelder-Mead method with an initial simplex built
 according to initial variables `x0` and argument(s) `args...`. In the most simple strategy
@@ -790,19 +804,11 @@ to build an initial simplex, `args...` is a single argument specifying the size 
 initial simplex size as a scalar or as an array of same shape as `x0` (see
 [`Simplex.build_simplex!`](@ref)).
 
-The result is a 4-tuple: `x` is the best solution found by the algorithm, `fx = f(x)` is the
-corresponding objective function value, `status` is the final status of the algorithm, and
-`nf` is the number of evaluations of the objective function.
-
-In order to retrieve the complete algorithm state, call one of:
-
-    simplex(Val(:context), f, x0, args...; kwds...) -> ctx
-    Simplex.solve(Val(:context), f, x0, args...; kwds...) -> ctx
-
-which yields a context `ctx` of type [`Simplex.Context`](@ref) that can be reused for
-solving other similar problems (saving allocations) and whose content is available by the
-`ctx.key` syntax (see [`Simplex.properties`](@ref)). Call `issuccess(ctx)` to figure out
-whether algorithm has converged.
+The result is an instance of [`Simplex.Context`](@ref) which stores the algorithm state and
+the candidate solution. Call `issuccess(ctx)` to figure out whether algorithm has converged,
+`ctx.x_best` yields the best point found by the algorithm, `ctx.f_best` yields the
+corresponding objective function value, etc. The context `ctx` can be reused for solving
+other similar problems (thus saving allocations) by calling [`Simplex.solve!`](@ref).
 
 ## Keywords
 
@@ -821,18 +827,19 @@ Other possible keywords are configurable options of the *Simplex* method (see
 
 ## See also
 
-[`Simplex.Context`](@ref), [`Simplex.configure!`](@ref), [`Simplex.build_simplex!`](@ref),
-and [`Simplex.solve!`](@ref).
+[`Simplex.Context`](@ref) for the properties of the returned context.
+
+[`Simplex.configure!`](@ref) for the configurable parameters of the algorithm.
+
+[`Simplex.build_simplex!`](@ref) for implemented initial simplex constructors.
+
+[`Simplex.solve!`](@ref) for solving other similar optimization problems with
+a given context.
 
 """
-function simplex(::Val{:context}, f, x0::AbstractArray, args...; observer=nothing, kwds...)
+function simplex(f, x0::AbstractArray, args...; observer=nothing, kwds...)
     ctx = Context(f, x0, args...; kwds...)
     return solve!(ctx, f; observer=observer)
-end
-
-function simplex(f, x0::AbstractArray, args...; kwds...)
-    ctx = simplex(Val(:context), f, x0, args...; kwds...)
-    return ctx.status, ctx.x_best, ctx.f_best, ctx.evaluations
 end
 
 const solve = simplex
