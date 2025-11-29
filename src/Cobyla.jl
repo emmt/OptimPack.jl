@@ -21,13 +21,13 @@ using CEnum
 
 using ..Powell:
     Powell,
+    copy_array,
     default_maxevals,
     default_npt,
     rho_reduction
 
 using ...OptimPack:
     OptimPack,
-    copy_array,
     throw_assertion_failed,
     throw_bad_argument,
     throw_dimension_mismatch
