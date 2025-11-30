@@ -155,7 +155,7 @@ LoopStyle(x::LoopStyle) = x
 @inline LoopStyle(x, y, z...) = LoopStyle(LoopStyle(x, y), z...)
 @inline LoopStyle(x, y) = LoopStyle(LoopStyle(x), LoopStyle(y))
 @inline LoopStyle(x::LoopStyle, y::LoopStyle) =
-    joint_styles_result(x, y, joint_styles(x, y), joint_styles(y, y))
+    joint_styles_result(x, y, joint_styles(x, y), joint_styles(y, x))
 
 @inline joint_styles_result(x, y, a::LoopStyle, b::Undefined) = a
 @inline joint_styles_result(x, y, a::Undefined, b::LoopStyle) = b
