@@ -212,12 +212,14 @@ Trait indicating that `@turbo for ...` loops can be used to iterate over argumen
 struct Turbo <: LoopStyleTurbo end
 
 """
-    LoopStyles.GPU()
+    LoopStyles.GPU{API}()
 
-Trait indicating that arguments are GPU arrays.
+Trait indicating that arguments are GPU arrays. `A` is a symbolic name representing the API
+of GPU arrays: e.g. `:CUDA`, `:oneAPI`, `:AMDGPU`, or `:Metal`. Arrays in CPU memory and GPU
+arrays with different API cannot be mixed together.
 
 """
-struct GPU <: LoopStyleGPU end
+struct GPU{API} <: LoopStyleGPU end
 
 LoopStyle(::Type{<:Any}) = Map()
 LoopStyle(::Type{<:AbstractArray}) = InBounds()
@@ -238,9 +240,11 @@ Return most suitable trait for jointly iterating over arguments with loop styles
 joint_styles(x::LoopStyle, y::LoopStyle) = Undefined()
 
 # GPU arrays can only be combined with GPU arrays.
-joint_styles(x::GPU, y::GPU) = GPU()
+joint_styles(x::GPU{API}, y::GPU{API}) where {API} = GPU{API}()
 joint_styles(x::GPU, y::LoopStyle) = throw_bad_argument(
     "cannot mix GPU array(s) and other array(s)")
+joint_styles(x::GPU{API₁}, y::GPU{API₂}) where {API₁,API₂} = throw_bad_argument(
+    "cannot mix GPU array(s) with API $(API₁) and $(API₂)")
 
 # Encode rules for other loop styles with the first operand being the most efficient and the
 # second operand being the least efficient.
