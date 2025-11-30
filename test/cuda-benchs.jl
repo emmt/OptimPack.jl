@@ -1,7 +1,7 @@
 """
     CudaBenchmarks
 
-Tests for basic operations on *"vectors"* remembering that any array is considered as a
+Tests for basic operations on *"CUDA vectors"* remembering that any array is considered as a
 vector of reals in these operations and complexes as pairs of reals. Typical usage:
 
     CudaBenchmarks.runtests(args...; kwds...)

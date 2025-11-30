@@ -24,7 +24,7 @@ else
 end
 ```
 
-This can be checked thanks to `@macroexpand`:
+This can be checked with `@macroexpand`:
 
 ```julia
 @macroexpand OptimPack.@dispatch_on_multiplier β unsafe_axpby!(dst, α, x, β, y)
