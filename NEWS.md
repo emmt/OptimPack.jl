@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+The main changes in this major release of `OptimPack` are:
+
+- Most algorithms are implemented in pure Julia (except Powell's methods) for the following
+  benefits:
+
+  - Algorithms in Julia for large scale problems should run faster and can deal with
+    variables stored in GPU.
+
 # Breaking changes
 
 - `fzero`, `fmin`, and `fmax` return a 5-tuple: `(x, fx, lo, hi, nf)` where `x` is the
