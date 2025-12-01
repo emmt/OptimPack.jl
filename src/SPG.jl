@@ -38,13 +38,16 @@ using ..OptimPack:
     inner,
     isnothing,
     issomething,
+    one_norm,
     ordinal_suffix,
     print_seconds,
     scale!,
-    tiny,
+    sup_norm,
+    throw_assertion_failed,
     throw_bad_argument,
     throw_dimension_mismatch,
-    throw_assertion_failed,
+    tiny,
+    two_norm,
     xpby!
 
 # Default settings. All values are dimensionless.
