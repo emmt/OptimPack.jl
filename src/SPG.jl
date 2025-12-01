@@ -633,6 +633,9 @@ function solve!(ctx::Context{T}, func, grad!, proj!;
     isempty(kwds) || configure!(ctx; kwds...)
     instantiate!(ctx)
 
+    # Reset memorized objective function values.
+    fill!(ctx.costs, typemin(eltype(ctx.costs)))
+
     # Scaling factors.
     fscl = ctx.fscl
     xscl = ctx.xscl
@@ -647,19 +650,16 @@ function solve!(ctx::Context{T}, func, grad!, proj!;
         ctx.gradients = 0
     end
     if reset || ctx.evaluations < 1
-        # Compute the objective function at the initial variables.
+        # Compute the objective function at the initial point.
         ctx.f = func(ctx.x)
         ctx.evaluations = 1
         ctx.gradients = 0
     end
     if reset || ctx.gradients < 1
-        # Compute the gradient of the objective function at the initial variables.
+        # Compute the gradient of the objective function at the initial point.
         grad!(ctx.g, ctx.x)
         ctx.gradients = 1
     end
-
-    # Reset memorized objective function values.
-    fill!(ctx.costs, typemin(eltype(ctx.costs)))
 
     # Main loop.
     t0 = time()
@@ -667,7 +667,7 @@ function solve!(ctx::Context{T}, func, grad!, proj!;
     ctx.iterations = 0
     ctx.status = :searching
     while true
-        # Store best solution.
+        # Store best solution and functional value.
         if ctx.iterations < 1 || ctx.f < ctx.f_best
             ctx.f_best = ctx.f
             copy!(ctx.x_best, ctx.x)
@@ -708,7 +708,8 @@ function solve!(ctx::Context{T}, func, grad!, proj!;
         if ctx.iterations < 1
             # Set initial step-length knowing that the sup-norm of the projected gradient is
             # strictly positive.
-            ctx.lambda = clamp(convert(T, xscl/ctx.gpsupn)::T, ctx.lmin, ctx.lmax)
+            ctx.lambda = xscl/ctx.gpsupn # NOTE also convert to type T
+            ctx.lambda = clamp(ctx.lambda, ctx.lmin, ctx.lmax)
         end
 
         # Save functional value for the non-monotone line search.
@@ -776,7 +777,7 @@ function solve!(ctx::Context{T}, func, grad!, proj!;
 
     # Make sure `x` contains the best solution (this may be expected if `spg!` is directly
     # called).
-    if ctx.f_best < ctx.f
+    if ctx.iterations > 0 && ctx.f_best < ctx.f
         copy!(ctx.x, ctx.x_best)
         ctx.f = ctx.f_best
     end
@@ -787,7 +788,7 @@ function solve!(ctx::Context{T}, func, grad!, proj!;
 end
 
 function linesearch!(ctx::Context, func)
-    # Compute the search direction given `x`, the feasible variables at the start of the
+    # Compute the search direction given `x`, the feasible point at the start of the
     # line-search, and `x_new`, the first feasible point to try.
     xpby!(ctx.d, ctx.x_new, -𝟙, ctx.x)
     ctx.alpha = 𝟙 # corresponding step-length
@@ -819,13 +820,16 @@ function linesearch!(ctx::Context, func)
         elseif ctx.evaluations ≥ ctx.maxevals
             ctx.status = :too_many_evaluations
             break
+        elseif ctx.alpha ≤ alpha_min
+            ctx.status = :rounding_errors
+            break
         end
         # Reduce the step length by a safeguarded quadratic interpolation.
         if ctx.alpha ≤ ctx.sigma1
             ctx.alpha /= 2
         else
             num = -gtd*ctx.alpha^2
-            den = 2.0*(ctx.f_new - ctx.f - ctx.alpha*gtd)
+            den = 2*(ctx.f_new - ctx.f - ctx.alpha*gtd)
             tmp = num/den
             if ctx.sigma1 ≤ tmp ≤ ctx.sigma2*ctx.alpha
                 ctx.alpha = tmp
@@ -833,24 +837,10 @@ function linesearch!(ctx::Context, func)
                 ctx.alpha /= 2
             end
         end
-        if ctx.alpha ≤ alpha_min
-            ctx.status = :rounding_errors
-            break
-        end
         # Next trial point (automatically feasible because we are backtracking and the
         # feasible set is convex).
         xpby!(ctx.x_new, ctx.x, ctx.alpha, ctx.d)
     end
 end
-
-# NOTE: The following method is not the same as `Unitful.unit`.
-unit(x::Any) = unit(typeof(x))
-unit(x::AbstractArray) = unit(eltype(x))
-unit(::Type{T}) where {T<:Number} = oneunit(T)
-unit(::Type{T}) where {T<:Any} = throw_bad_argument("unknown units for type `$T`")
-
-# Discard units if any and convert to specified floating-point type.
-dimensionless(::Type{T}, x::Real) where {T<:AbstractFloat} = convert(T, x)
-dimensionless(::Type{T}, x::Number) where {T<:AbstractFloat} = convert(T, x/oneunit(x))
 
 end # module
