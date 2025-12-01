@@ -51,7 +51,7 @@ issomething(x::Any) = !isnothing(x)
 
 #----------------------------------------------------------------------- Bound constraints -
 
-(B::Bounds)(x::AbstractArray) = proj!(x, box.lower, box.upper)
+(B::Bounds)(x::AbstractArray) = proj!(x, B.lower, B.upper)
 
 function proj!(x::AbstractArray, l::AbstractArray, u::AbstractArray)
     axes(x) == axes(l) == axes(u) || throw_incompatible_axes()

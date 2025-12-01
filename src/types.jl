@@ -25,6 +25,6 @@ struct Bounds{T,N,
                                                U<:AbstractArray{T,N}}
         axes(lower) == axes(upper) ||  throw_dimension_mismatch(
             "`lower` and `upper` bounds must have the same axes")
-        return new{T,N,L,U}(lowr, upper)
+        return new{T,N,L,U}(lower, upper)
     end
 end
