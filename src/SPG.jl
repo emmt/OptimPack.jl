@@ -58,9 +58,6 @@ const default_gamma = 1.0e-4
 const default_sigma1 = 0.1
 const default_sigma2 = 0.9
 
-const _DOC_PROPERTIES = """
-"""
-
 """
     SPG.Context{T,Xa,F,Ga}(undef) -> ctx
 
@@ -73,53 +70,53 @@ the type of the gradient.
 
 Context `ctx` has many properties accessible with the `ctx.key` syntax.
 
-* Current variables:
-  * `ctx.x`: Current point.
-  * `ctx.f`: Objective function at current point.
-  * `ctx.g`: Gradient at current point.
-  * `ctx.gpsupn`: Sup-norm of projected gradient.
+Current variables:
+* `ctx.x`: Current point.
+* `ctx.f`: Objective function at current point.
+* `ctx.g`: Gradient at current point.
+* `ctx.gpsupn`: Sup-norm of projected gradient.
 
-* Candidate solution:
-  * `ctx.x_best`: Best point.
-  * `ctx.f_best`: Objective function at best point.
+Candidate solution:
+* `ctx.x_best`: Best point.
+* `ctx.f_best`: Objective function at best point.
 
-* New iterate found by the line-search:
-  * `ctx.x_new`: Trial point.
-  * `ctx.f_new`: Objective function at trial point.
-  * `ctx.g_new`: Gradient at trial point.
+New iterate found by the line-search:
+* `ctx.x_new`: Trial point.
+* `ctx.f_new`: Objective function at trial point.
+* `ctx.g_new`: Gradient at trial point.
 
-* Line-search:
-  * `ctx.d`: Search direction or projected gradient.
-  * `ctx.costs`: Memorized previous function values.
-  * `ctx.gamma`: Parameter for Armijo's criterion.
-  * `ctx.lambda`: Spectral step-length.
-  * `ctx.lmin`: Lower bound for `ctx.lambda`, `0 < ctx.lmin < 1` must hold.
-  * `ctx.lmax`: Upper bound for `ctx.lambda`, `1 < lmax < +∞` must hold.
-  * `ctx.alpha`: Backtracking step-length, `0 < ctx.alpha ≤ 1` must hold.
-  * `ctx.sigma1`: Lower absolute threshold for `ctx.alpha`.
-  * `ctx.sigma2`: Upper relative threshold for `ctx.alpha`.
+Line-search:
+* `ctx.d`: Search direction or projected gradient.
+* `ctx.costs`: Memorized previous function values.
+* `ctx.gamma`: Parameter for Armijo's criterion.
+* `ctx.lambda`: Spectral step-length.
+* `ctx.lmin`: Lower bound for `ctx.lambda`, `0 < ctx.lmin < 1` must hold.
+* `ctx.lmax`: Upper bound for `ctx.lambda`, `1 < lmax < +∞` must hold.
+* `ctx.alpha`: Backtracking step-length, `0 < ctx.alpha ≤ 1` must hold.
+* `ctx.sigma1`: Lower absolute threshold for `ctx.alpha`.
+* `ctx.sigma2`: Upper relative threshold for `ctx.alpha`.
 
-* Stopping criteria.:
-  * `ctx.eps1`: Threshold for the sup-norm of the projected gradient.
-  * `ctx.maxiters`: Maximum number of iterations.
-  * `ctx.maxevals`: Maximum number of functional evaluations.
-  * `ctx.status`: Algorithm status.
+Stopping criteria.:
+* `ctx.eps1`: Threshold for the sup-norm of the projected gradient.
+* `ctx.maxiters`: Maximum number of iterations.
+* `ctx.maxevals`: Maximum number of functional evaluations.
+* `ctx.status`: Algorithm status.
 
-* Scaling factors:
-  * `ctx.xscl`: Scaling factor for the variables.
-  * `ctx.fscl`: Scaling factor for the objective function.
+Scaling factors:
+* `ctx.xscl`: Scaling factor for the variables.
+* `ctx.fscl`: Scaling factor for the objective function.
 
-*  Counters:
-  * `ctx.iterations`: Number of iterations.
-  * `ctx.evaluations`: Number of objective function calls.
-  * `ctx.gradients`: Number of gradient calls.
-  * `ctx.projections`: Number of projections.
-  * `ctx.Δt`: Elapsed time (seconds).
+ Counters:
+* `ctx.iterations`: Number of iterations.
+* `ctx.evaluations`: Number of objective function calls.
+* `ctx.gradients`: Number of gradient calls.
+* `ctx.projections`: Number of projections.
+* `ctx.Δt`: Elapsed time (seconds).
 
-* Optional storage:
-  * `ctx.save_memory`: Use optional work-spaces?
-  * `ctx.s`: Storage for `ctx.x_new - ctx.x`, unused if `ctx.save_memory` is `true`.
-  * `ctx.y`: Storage for `ctx.g_new - ctx.g`, unused if `ctx.save_memory` is `true`.
+Optional storage:
+* `ctx.save_memory`: Use optional work-spaces?
+* `ctx.s`: Storage for `ctx.x_new - ctx.x`, unused if `ctx.save_memory` is `true`.
+* `ctx.y`: Storage for `ctx.g_new - ctx.g`, unused if `ctx.save_memory` is `true`.
 
 """
 mutable struct Context{T<:AbstractFloat,Xa,F,Ga,Xs}
