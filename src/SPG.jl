@@ -803,9 +803,6 @@ function linesearch!(ctx::Context, func)
         end
         return
     end
-    # Threshold to detect rounding errors. If the step-length `alpha` becomes smaller or
-    # equal this, Armijo's condition automatically holds.
-    alpha_min = tiny(fmax/(ctx.gamma*gtd))/2
     # Adjust the step length until one of the stopping criteria hold.
     while true
         # Evaluate objective function at trial point.
@@ -816,9 +813,6 @@ function linesearch!(ctx::Context, func)
             break
         elseif ctx.evaluations ≥ ctx.maxevals
             ctx.status = :too_many_evaluations
-            break
-        elseif ctx.alpha ≤ alpha_min
-            ctx.status = :rounding_errors
             break
         end
         # Reduce the step length by a safeguarded quadratic interpolation.
