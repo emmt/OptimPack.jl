@@ -71,14 +71,30 @@ export
 
 # Public but not exported API.
 using TypeUtils: @public
-@public Bounds Problems
-@public configure! iterate! solve! restart!
-
-# Public but not exported API for vector-like operations.
-@public adapt_multiplier_precision @dispatch_on_multiplier
-@public recode recode!
-@public one_norm two_norm sup_norm inner
-@public scale! xpby! axpby!
+@public @dispatch_on_multiplier,
+        BoundedSet,
+        ConvexSet,
+        Problems,
+        adapt_multiplier_precision,
+        axpby!,
+        configure!,
+        has_contraints,
+        inner,
+        iterate!,
+        line_search_limits,
+        line_search_step_max,
+        one_norm,
+        project_direction!,
+        project_variables!,
+        recode!,
+        recode,
+        restart!,
+        scale!,
+        solve!,
+        sup_norm,
+        two_norm,
+        unblocked_variables!,
+        xpby!
 
 using LinearAlgebra
 using Neutrals
@@ -115,9 +131,12 @@ using .LoopStyles
 
 include("macros.jl")
 include("types.jl")
+include("API.jl")
 include("common.jl")
-
 include("vectops.jl")
+
+include("BoundedSets.jl")
+import .BoundedSets: BoundedSet
 
 include("Brent.jl")
 import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero

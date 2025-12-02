@@ -1,5 +1,5 @@
 """
-    OptinPack.SPG
+    OptimPack.SPG
 
 This module implements the *Spectral Projected Gradient Method* (Version 2: "continuous
 projected gradient direction") to find a local minimum of a multi-variate objective function
@@ -18,7 +18,9 @@ Original code can be found at www.ime.usp.br/~egbirgin/tango/.
 module SPG
 
 export
-    spg, spg!
+    issuccess,
+    spg,
+    spg!
 
 using TypeUtils: @public
 @public Context, configure!, solve!

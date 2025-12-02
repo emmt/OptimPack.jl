@@ -37,6 +37,7 @@ export
     LoopStyleInBounds,
     LoopStyleMap,
     LoopStyleSIMD,
+    LoopStyleScalar,
     LoopStyleTurbo
 
 # Concrete indexing types are public but not exported.
@@ -47,16 +48,27 @@ using TypeUtils: @public
 @public InBounds
 @public Map
 @public SIMD
+@public Scalar
 @public Turbo
 
 @public one_norm two_norm sup_norm inner scale! xpby! axpby!
 @public recode recode!  @pass
+
+using StructuredArrays
 
 # Used to indicate undefined result.
 struct Undefined end
 
 # Abstract indexing methods for the hierarchy and for methods signatures.
 abstract type LoopStyle end
+
+"""
+    LoopStyleScalar <: LoopStyle
+
+Abstract type of traits representing scalars.
+
+"""
+abstract type LoopStyleScalar <: LoopStyle end
 
 """
     LoopStyleGPU <: LoopStyle
@@ -130,6 +142,8 @@ The hierarchy of indexing types is:
 ```
 LoopStyle (abstract)
  │
+ ├╴LoopStyleScalar (abstract) -> LoopStyles.Scalar
+ │
  ├╴LoopStyleMap (abstract) -> LoopStyles.Map
  │
  ├╴LoopStyleDot (abstract) -> LoopStyles.Dot
@@ -162,6 +176,14 @@ LoopStyle(x::LoopStyle) = x
 @inline joint_styles_result(x, y, a::T, b::T) where {T<:LoopStyle} = a
 @noinline joint_styles_result(x, y, ::Any, ::Any) = throw_bad_argument(
     "joint indexing for `$(typeof(x))` and `$(typeof(y))` is not supported")
+
+"""
+    LoopStyles.Scalar()
+
+Trait representing scalars.
+
+"""
+struct Scalar <: LoopStyleScalar end
 
 """
     LoopStyles.Map()
@@ -221,14 +243,12 @@ arrays with different API cannot be mixed together.
 """
 struct GPU{API} <: LoopStyleGPU end
 
+LoopStyle(::Type{<:Number}) = Scalar()
 LoopStyle(::Type{<:Any}) = Map()
 LoopStyle(::Type{<:AbstractArray}) = InBounds()
 LoopStyle(::Type{<:StridedArray}) = SIMD()
 LoopStyle(::Type{<:Array}) = Turbo()
-
-#=
-LoopStyle(::Type{<:StructuredArray}) = SIMD() or Turbo()
-=#
+LoopStyle(::Type{<:AbstractUniformArray}) = Scalar()
 
 """
     LoopStyles.joint_styles(x::LoopStyle, y::LoopStyle)
@@ -238,6 +258,9 @@ Return most suitable trait for jointly iterating over arguments with loop styles
 
 """
 joint_styles(x::LoopStyle, y::LoopStyle) = Undefined()
+
+# Special rules for scalars.
+joint_styles(x::LoopStyle, y::Scalar) = x
 
 # GPU arrays can only be combined with GPU arrays.
 joint_styles(x::GPU{API}, y::GPU{API}) where {API} = GPU{API}()

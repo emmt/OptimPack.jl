@@ -1,7 +1,4 @@
-function solve! end
-function configure! end
-function restart! end
-function iterate! end
+#--------------------------------------------------------------------------- Miscellaneous -
 
 function ordinal_suffix(n::Integer)
     if n > zero(n)
@@ -48,18 +45,6 @@ if !isdefined(Base, :isnothing)
     isnothing(x::Any) = false
 end
 issomething(x::Any) = !isnothing(x)
-
-#----------------------------------------------------------------------- Bound constraints -
-
-(B::Bounds)(x::AbstractArray) = proj!(x, B.lower, B.upper)
-
-function proj!(x::AbstractArray, l::AbstractArray, u::AbstractArray)
-    axes(x) == axes(l) == axes(u) || throw_incompatible_axes()
-    @inbounds @simd for i in eachindex(x, l, u)
-        x[i] = clamp(x[i], l[i], u[i])
-    end
-    return x
-end
 
 #---------------------------------------------------------------------------------- Errors -
 

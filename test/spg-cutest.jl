@@ -3,7 +3,7 @@ module SPGCUTEst
 using CUTEst
 using NLPModels
 using OptimPack
-using OptimPack: Bounds
+using OptimPack: BoundedSet
 using Printf
 
 default_problems = sort(select_sif_problems(; min_var=2,
@@ -16,7 +16,7 @@ function runtests(problems=default_problems; kwds...)
         nlp = CUTEstModel{Cdouble}(name)
         try
             ctx = spg(x -> obj(nlp, x), (g, x) -> copy!(g, grad(nlp, x)),
-                      Bounds(nlp.meta.lvar, nlp.meta.uvar), nlp.meta.x0;
+                      BoundedSet(nlp.meta.lvar, nlp.meta.uvar), nlp.meta.x0;
                       kwds...)
             @printf("%-10s %7d %7d %7d %7d %7d %23.15e%10.2e ", name, length(ctx.x_best), ctx.iterations,
                     ctx.evaluations, ctx.gradients, ctx.projections, ctx.f_best, ctx.gpsupn)
