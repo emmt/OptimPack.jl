@@ -83,6 +83,7 @@ using TypeUtils: @public
         iterate!,
         line_search_limits,
         line_search_step_max,
+        mult!,
         one_norm,
         project_direction!,
         project_variables!,

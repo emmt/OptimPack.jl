@@ -10,7 +10,7 @@ vector of reals in these operations and complexes as pairs of reals. Typical usa
 module VectOpsTests
 
 using LinearAlgebra, Neutrals, OptimPack, Printf, Test, TypeUtils, Unitful
-using OptimPack: LoopStyles, one_norm, two_norm, sup_norm, inner, scale!, xpby!, axpby!
+using OptimPack: LoopStyles, one_norm, two_norm, sup_norm, inner, scale!, mult!, xpby!, axpby!
 
 function runtests(; T::Type=Float32,
                   dims::Union{Integer,Tuple{Vararg{Integer}}}=10_000,
@@ -110,6 +110,37 @@ function runtests(; T::Type=Float32,
             @test z ≈ s
             @test @inferred(scale!(LoopStyles.Turbo(),    z, α, x)) === z
             @test x == x_cpy
+            @test z ≈ s
+        end
+        @testset "element-wise multiplication" begin
+            s = x .* y
+            @test @inferred(mult!(                       z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
+            @test z ≈ s
+            @test @inferred(mult!(LoopStyles.Map(),      z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
+            @test z ≈ s
+            @test @inferred(mult!(LoopStyles.Dot(),      z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
+            @test z ≈ s
+            @test @inferred(mult!(LoopStyles.For(),      z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
+            @test z ≈ s
+            @test @inferred(mult!(LoopStyles.InBounds(), z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
+            @test z ≈ s
+            @test @inferred(mult!(LoopStyles.SIMD(),     z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
+            @test z ≈ s
+            @test @inferred(mult!(LoopStyles.Turbo(),    z, x, y)) === z
+            @test x == x_cpy
+            @test y == y_cpy
             @test z ≈ s
         end
         @testset "xpby!(dst, x, $β, y)" for β in betas

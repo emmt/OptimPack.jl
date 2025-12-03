@@ -404,6 +404,48 @@ end
 @eval $(recode!(unsafe_scale!_simd(), simd_to_for...))
 @eval $(recode!(unsafe_scale!_simd(), simd_to_inbounds...))
 
+
+"""
+    OptimPack.mult!([ls,] dst, x, y) -> dst
+
+Overwrite `dst` with the element-wise product of `x` and `y`.
+
+Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
+computations. If not specified, it is automatically inferred from the types of `x` and `y`.
+
+See also [`OptimPack.scale!`](@ref) and [`OptimPack.LoopStyle`](@ref).
+
+"""
+function mult!(dst::AbstractArray, x::AbstractArray, y::AbstractArray)
+    return mult!(LoopStyle(dst, x, y), dst, x, y)
+end
+function mult!(ls::LoopStyle, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
+    # TODO arguments should be real-valued?
+    axes(dst) == axes(x) == axes(y) || throw_incompatible_axes()
+    unsafe_mult!(ls, dst, x, y)
+    return dst
+end
+function unsafe_mult!(::LoopStyleMap, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
+    map!(*, dst, x, y)
+    return nothing
+end
+function unsafe_mult!(::LoopStyleDot, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
+    @. dst = x*y
+    return nothing
+end
+unsafe_mult!_simd() = quote
+    function unsafe_mult!(::LoopStyleSIMD, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
+        @inbounds @simd for i in eachindex(dst, x, y)
+            dst[i] = x[i]*y[i]
+        end
+        return nothing
+    end
+end
+
+@eval $(        unsafe_mult!_simd())
+@eval $(recode!(unsafe_mult!_simd(), simd_to_for...))
+@eval $(recode!(unsafe_mult!_simd(), simd_to_inbounds...))
+
 """
     OptimPack.xpby!([ls,] dst, x, β, y) -> dst
 
