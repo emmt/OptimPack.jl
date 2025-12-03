@@ -108,7 +108,7 @@ one_norm_simd() = quote
     end
 end
 
-@eval $(one_norm_simd())
+@eval $(        one_norm_simd())
 @eval $(recode!(one_norm_simd(), simd_to_for...))
 @eval $(recode!(one_norm_simd(), simd_to_inbounds...))
 
@@ -151,7 +151,7 @@ two_norm_simd() = quote
     end
 end
 
-@eval $(two_norm_simd())
+@eval $(        two_norm_simd())
 @eval $(recode!(two_norm_simd(), simd_to_for...))
 @eval $(recode!(two_norm_simd(), simd_to_inbounds...))
 
@@ -194,7 +194,7 @@ sup_norm_simd() = quote
     end
 end
 
-@eval $(sup_norm_simd())
+@eval $(        sup_norm_simd())
 @eval $(recode!(sup_norm_simd(), simd_to_for...))
 @eval $(recode!(sup_norm_simd(), simd_to_inbounds...))
 
@@ -400,7 +400,7 @@ unsafe_scale!_simd() = quote
     end
 end
 
-@eval $(unsafe_scale!_simd())
+@eval $(        unsafe_scale!_simd())
 @eval $(recode!(unsafe_scale!_simd(), simd_to_for...))
 @eval $(recode!(unsafe_scale!_simd(), simd_to_inbounds...))
 
@@ -470,7 +470,7 @@ unsafe_xpby!_simd() = quote
     end
 end
 
-@eval $(unsafe_xpby!_simd())
+@eval $(        unsafe_xpby!_simd())
 @eval $(recode!(unsafe_xpby!_simd(), simd_to_for...))
 @eval $(recode!(unsafe_xpby!_simd(), simd_to_inbounds...))
 
@@ -566,6 +566,6 @@ unsafe_axpby!_simd() = quote
     end
 end
 
-@eval $(unsafe_axpby!_simd())
+@eval $(        unsafe_axpby!_simd())
 @eval $(recode!(unsafe_axpby!_simd(), simd_to_for...))
 @eval $(recode!(unsafe_axpby!_simd(), simd_to_inbounds...))

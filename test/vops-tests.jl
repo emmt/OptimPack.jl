@@ -26,52 +26,52 @@ function runtests(; T::Type=Float32,
     @testset "Operations on vectors" begin
         @testset "1-norm" begin
             s = norm(view(x, :), 1)
-            @test @inferred(one_norm(x)) ≈ s
-            @test @inferred(one_norm(LoopStyles.Map(), x)) ≈ s
-            @test @inferred(one_norm(LoopStyles.Dot(), x)) ≈ s
-            @test @inferred(one_norm(LoopStyles.For(), x)) ≈ s
+            @test @inferred(one_norm(                       x)) ≈ s
+            @test @inferred(one_norm(LoopStyles.Map(),      x)) ≈ s
+            @test @inferred(one_norm(LoopStyles.Dot(),      x)) ≈ s
+            @test @inferred(one_norm(LoopStyles.For(),      x)) ≈ s
             @test @inferred(one_norm(LoopStyles.InBounds(), x)) ≈ s
-            @test @inferred(one_norm(LoopStyles.SIMD(), x)) ≈ s
-            @test @inferred(one_norm(LoopStyles.Turbo(), x)) ≈ s
+            @test @inferred(one_norm(LoopStyles.SIMD(),     x)) ≈ s
+            @test @inferred(one_norm(LoopStyles.Turbo(),    x)) ≈ s
             @test isequal(@inferred(one_norm([1.0, NaN])), NaN)
             @test isequal(@inferred(one_norm([NaN, 1.0])), NaN)
             @test x == x_cpy
         end
         @testset "2-norm" begin
             s = norm(view(x, :), 2)
-            @test @inferred(two_norm(x)) ≈ s
-            @test @inferred(two_norm(LoopStyles.Map(), x)) ≈ s
-            @test @inferred(two_norm(LoopStyles.Dot(), x)) ≈ s
-            @test @inferred(two_norm(LoopStyles.For(), x)) ≈ s
+            @test @inferred(two_norm(                       x)) ≈ s
+            @test @inferred(two_norm(LoopStyles.Map(),      x)) ≈ s
+            @test @inferred(two_norm(LoopStyles.Dot(),      x)) ≈ s
+            @test @inferred(two_norm(LoopStyles.For(),      x)) ≈ s
             @test @inferred(two_norm(LoopStyles.InBounds(), x)) ≈ s
-            @test @inferred(two_norm(LoopStyles.SIMD(), x)) ≈ s
-            @test @inferred(two_norm(LoopStyles.Turbo(), x)) ≈ s
+            @test @inferred(two_norm(LoopStyles.SIMD(),     x)) ≈ s
+            @test @inferred(two_norm(LoopStyles.Turbo(),    x)) ≈ s
             @test isequal(@inferred(two_norm([1.0, NaN])), NaN)
             @test isequal(@inferred(two_norm([NaN, 1.0])), NaN)
             @test x == x_cpy
         end
         @testset "sup-norm" begin
             s = norm(view(x, :), Inf)
-            @test @inferred(sup_norm(x)) ≈ s
-            @test @inferred(sup_norm(LoopStyles.Map(), x)) ≈ s
-            @test @inferred(sup_norm(LoopStyles.Dot(), x)) ≈ s
-            @test @inferred(sup_norm(LoopStyles.For(), x)) ≈ s
+            @test @inferred(sup_norm(                       x)) ≈ s
+            @test @inferred(sup_norm(LoopStyles.Map(),      x)) ≈ s
+            @test @inferred(sup_norm(LoopStyles.Dot(),      x)) ≈ s
+            @test @inferred(sup_norm(LoopStyles.For(),      x)) ≈ s
             @test @inferred(sup_norm(LoopStyles.InBounds(), x)) ≈ s
-            @test @inferred(sup_norm(LoopStyles.SIMD(), x)) ≈ s
-            @test @inferred(sup_norm(LoopStyles.Turbo(), x)) ≈ s
+            @test @inferred(sup_norm(LoopStyles.SIMD(),     x)) ≈ s
+            @test @inferred(sup_norm(LoopStyles.Turbo(),    x)) ≈ s
             @test isequal(@inferred(sup_norm([1.0, NaN])), NaN)
             @test isequal(@inferred(sup_norm([NaN, 1.0])), NaN)
             @test x == x_cpy
         end
         @testset "inner product" begin
             s = dot(view(x, :), view(y, :))
-            @test @inferred(inner(x, y)) ≈ s
-            @test @inferred(inner(LoopStyles.Map(), x, y)) ≈ s
-            @test @inferred(inner(LoopStyles.Dot(), x, y)) ≈ s
-            @test @inferred(inner(LoopStyles.For(), x, y)) ≈ s
+            @test @inferred(inner(                       x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.Map(),      x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.Dot(),      x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.For(),      x, y)) ≈ s
             @test @inferred(inner(LoopStyles.InBounds(), x, y)) ≈ s
-            @test @inferred(inner(LoopStyles.SIMD(), x, y)) ≈ s
-            @test @inferred(inner(LoopStyles.Turbo(), x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.SIMD(),     x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.Turbo(),    x, y)) ≈ s
             @test x == x_cpy
             @test y == y_cpy
         end
@@ -90,43 +90,43 @@ function runtests(; T::Type=Float32,
         end
         @testset "scale!(dst, $α, x)" for α in alphas
             s = α*x
-            @test @inferred(scale!(z, α, x)) === z
+            @test @inferred(scale!(                       z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
-            @test @inferred(scale!(LoopStyles.Map(), z, α, x)) === z
+            @test @inferred(scale!(LoopStyles.Map(),      z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
-            @test @inferred(scale!(LoopStyles.Dot(), z, α, x)) === z
+            @test @inferred(scale!(LoopStyles.Dot(),      z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
-            @test @inferred(scale!(LoopStyles.For(), z, α, x)) === z
+            @test @inferred(scale!(LoopStyles.For(),      z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
             @test @inferred(scale!(LoopStyles.InBounds(), z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
-            @test @inferred(scale!(LoopStyles.SIMD(), z, α, x)) === z
+            @test @inferred(scale!(LoopStyles.SIMD(),     z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
-            @test @inferred(scale!(LoopStyles.Turbo(), z, α, x)) === z
+            @test @inferred(scale!(LoopStyles.Turbo(),    z, α, x)) === z
             @test x == x_cpy
             @test z ≈ s
         end
         @testset "xpby!(dst, x, $β, y)" for β in betas
             s = x + β*y
-            @test @inferred(xpby!(z, x, β, y)) === z
+            @test @inferred(xpby!(                       z, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(xpby!(LoopStyles.Map(), z, x, β, y)) === z
+            @test @inferred(xpby!(LoopStyles.Map(),      z, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(xpby!(LoopStyles.Dot(), z, x, β, y)) === z
+            @test @inferred(xpby!(LoopStyles.Dot(),      z, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(xpby!(LoopStyles.For(), z, x, β, y)) === z
+            @test @inferred(xpby!(LoopStyles.For(),      z, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
@@ -134,30 +134,30 @@ function runtests(; T::Type=Float32,
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(xpby!(LoopStyles.SIMD(), z, x, β, y)) === z
+            @test @inferred(xpby!(LoopStyles.SIMD(),     z, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(xpby!(LoopStyles.Turbo(), z, x, β, y)) === z
+            @test @inferred(xpby!(LoopStyles.Turbo(),    z, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
         end
         @testset "axpby!(dst, $α, x, $β, y)" for α in alphas, β in betas
             s = α*x + β*y
-            @test @inferred(axpby!(z, α, x, β, y)) === z
+            @test @inferred(axpby!(                       z, α, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(axpby!(LoopStyles.Map(), z, α, x, β, y)) === z
+            @test @inferred(axpby!(LoopStyles.Map(),      z, α, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(axpby!(LoopStyles.Dot(), z, α, x, β, y)) === z
+            @test @inferred(axpby!(LoopStyles.Dot(),      z, α, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(axpby!(LoopStyles.For(), z, α, x, β, y)) === z
+            @test @inferred(axpby!(LoopStyles.For(),      z, α, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
@@ -165,11 +165,11 @@ function runtests(; T::Type=Float32,
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(axpby!(LoopStyles.SIMD(), z, α, x, β, y)) === z
+            @test @inferred(axpby!(LoopStyles.SIMD(),     z, α, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
-            @test @inferred(axpby!(LoopStyles.Turbo(), z, α, x, β, y)) === z
+            @test @inferred(axpby!(LoopStyles.Turbo(),    z, α, x, β, y)) === z
             @test x == x_cpy
             @test y == y_cpy
             @test z ≈ s
