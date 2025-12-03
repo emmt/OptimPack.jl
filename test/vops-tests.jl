@@ -16,9 +16,11 @@ function runtests(; T::Type=Float32,
                   dims::Union{Integer,Tuple{Vararg{Integer}}}=10_000,
                   alphas=(-1, 0, 1, -𝟙, 𝟘, 𝟙, 2, -pi),
                   betas=(-1, 0, 1, -𝟙, 𝟘, 𝟙, -2, pi))
+    w = rand(T, dims)
     x = rand(T, dims)
     y = rand(T, dims)
     z = similar(x)
+    w_cpy = copy(w) # to check that w is left untouched
     x_cpy = copy(x) # to check that x is left untouched
     y_cpy = copy(y) # to check that y is left untouched
     @testset "Operations on vectors" begin
@@ -33,6 +35,7 @@ function runtests(; T::Type=Float32,
             @test @inferred(one_norm(LoopStyles.Turbo(), x)) ≈ s
             @test isequal(@inferred(one_norm([1.0, NaN])), NaN)
             @test isequal(@inferred(one_norm([NaN, 1.0])), NaN)
+            @test x == x_cpy
         end
         @testset "2-norm" begin
             s = norm(view(x, :), 2)
@@ -45,6 +48,7 @@ function runtests(; T::Type=Float32,
             @test @inferred(two_norm(LoopStyles.Turbo(), x)) ≈ s
             @test isequal(@inferred(two_norm([1.0, NaN])), NaN)
             @test isequal(@inferred(two_norm([NaN, 1.0])), NaN)
+            @test x == x_cpy
         end
         @testset "sup-norm" begin
             s = norm(view(x, :), Inf)
@@ -57,6 +61,7 @@ function runtests(; T::Type=Float32,
             @test @inferred(sup_norm(LoopStyles.Turbo(), x)) ≈ s
             @test isequal(@inferred(sup_norm([1.0, NaN])), NaN)
             @test isequal(@inferred(sup_norm([NaN, 1.0])), NaN)
+            @test x == x_cpy
         end
         @testset "inner product" begin
             s = dot(view(x, :), view(y, :))
@@ -67,6 +72,21 @@ function runtests(; T::Type=Float32,
             @test @inferred(inner(LoopStyles.InBounds(), x, y)) ≈ s
             @test @inferred(inner(LoopStyles.SIMD(), x, y)) ≈ s
             @test @inferred(inner(LoopStyles.Turbo(), x, y)) ≈ s
+            @test x == x_cpy
+            @test y == y_cpy
+        end
+        @testset "triple inner product" begin
+            s = sum(w .* x .* y)
+            @test @inferred(inner(                       w, x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.Map(),      w, x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.Dot(),      w, x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.For(),      w, x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.InBounds(), w, x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.SIMD(),     w, x, y)) ≈ s
+            @test @inferred(inner(LoopStyles.Turbo(),    w, x, y)) ≈ s
+            @test w == w_cpy
+            @test x == x_cpy
+            @test y == y_cpy
         end
         @testset "scale!(dst, $α, x)" for α in alphas
             s = α*x

@@ -206,10 +206,19 @@ end
 
 """
     OptimPack.inner([ls,] x, y) -> s
+    OptimPack.inner([ls,] w, x, y) -> s
 
 Return the inner product (a.k.a. scalar product) of `x` and `y` considering them as *simple
 vectors of reals*. That is, `x` and `y` must have the same shapes and complexes are
-considered as pairs of reals. The result is real-valued.
+considered as pairs of reals. The result is real-valued and computed as:
+
+    s = Σᵢ xᵢ*yᵢ
+
+where `xᵢ` and `yᵢ` denote the `i`-the real values in `x` and `y` respectively.
+
+If `w`, an array of same shape as `x` and `y` is specified, the result is:
+
+    s = Σᵢ wᵢ*xᵢ*yᵢ
 
 Optional `ls::OptimPack.LoopStyle` is to explicitly choose a loop-style for the
 computations. If not specified, it is automatically inferred from the types of `x` and `y`.
@@ -218,30 +227,72 @@ See also [`OptimPack.one_norm`](@ref), [`OptimPack.two_norm`](@ref),
 [`OptimPack.sup_norm`](@ref), and [`OptimPack.LoopStyle`](@ref).
 
 """
-@inline inner(x::Number, y::Number) = x*y
+function inner end
+
+# Inner product of 2 reals or 2 complexes. NOTE Mixing complexes and reals in inner product
+# is purposely not supported.
+@inline inner(x::Real, y::Real) = x*y
+@inline inner(x::Complex, y::Complex) = inner(x.re, y.re) + inner(x.im, y.im)
+
+# Inner product of 1 quantity and 1 number.
 @inline inner(x::Number, y::AbstractQuantity) = inner(y, x)
 @inline inner(x::AbstractQuantity, y::Number) = inner(ustrip(x), y)*unit(x)
+
+# Inner product of 2 quantities.
 @inline inner(x::AbstractQuantity, y::AbstractQuantity) = inner(ustrip(x), ustrip(y))*(unit(x)*unit(y))
-@inline inner(x::Complex, y::Complex) = inner(x.re, y.re) + inner(x.im, y.im)
-inner(x::Number, ::Complex) = inner(y, x)
-inner(x::Complex, y::Number) = error(
-    "mixing complexes and reals in `inner(x,y)` is purposely not supported")
+
+# Triple inner product of 3 reals or 3 complexes. NOTE Mixing complexes and reals in inner
+# product is purposely not supported.
+@inline inner(w::Real, x::Real, y::Real) = w*x*y
+@inline inner(w::Complex, x::Complex, y::Complex) = inner(w.re, x.re, y.re) + inner(w.im, x.im, y.im)
+
+# Triple inner product with 1 quantity and 2 numbers.
+@inline inner(w::Number, x::Number, y::AbstractQuantity) = inner(y, w, x)
+@inline inner(w::Number, x::AbstractQuantity, y::Number) = inner(x, w, y)
+@inline inner(w::AbstractQuantity, x::Number, y::Number) = inner(ustrip(w), x, y)*unit(w)
+
+# Triple inner product with 2 quantities and 1 number.
+@inline inner(w::AbstractQuantity, x::AbstractQuantity, y::Number) = inner(y, w, x)
+@inline inner(w::AbstractQuantity, x::Number, y::AbstractQuantity) = inner(x, w, y)
+@inline inner(w::Number, x::AbstractQuantity, y::AbstractQuantity) =
+    inner(w, ustrip(x), ustrip(y))*(unit(x)*unit(y))
+
+# Triple inner product with 3 quantities.
+@inline inner(w::AbstractQuantity, x::AbstractQuantity, y::AbstractQuantity) =
+    inner(ustrip(w), ustrip(x), ustrip(y))*(unit(w)*unit(x)*unit(y))
 
 # Automatically infer loop-style.
 function inner(x::AbstractArray, y::AbstractArray)
     return inner(avoid_turbo(LoopStyle(x, y)), x, y)
 end
+function inner(w::AbstractArray, x::AbstractArray, y::AbstractArray)
+    return inner(avoid_turbo(LoopStyle(w, x, y)), w, x, y)
+end
 
+# Check axes and call "unsafe" implementation.
 function inner(ls::LoopStyle, x::AbstractArray, y::AbstractArray)
     axes(x) == axes(y) || throw_incompatible_axes()
     return unsafe_inner(ls, x, y)
 end
+function inner(ls::LoopStyle, w::AbstractArray, x::AbstractArray, y::AbstractArray)
+    axes(w) == axes(x) == axes(y) || throw_incompatible_axes()
+    return unsafe_inner(ls, w, x, y)
+end
 
-# Fallback method.
-unsafe_inner(::LoopStyle, x::AbstractArray, y::AbstractArray) = unsafe_inner(LoopStyles.Map(), x, y)
+# Fallback methods.
+function unsafe_inner(::LoopStyle, x::AbstractArray, y::AbstractArray)
+    unsafe_inner(LoopStyles.Map(), x, y)
+end
+function unsafe_inner(::LoopStyle, w::AbstractArray, x::AbstractArray, y::AbstractArray)
+    unsafe_inner(LoopStyles.Map(), w, x, y)
+end
 
+# Inner products based on `mapreduce`.
 function unsafe_inner(::LoopStyleMap, x::AbstractArray, y::AbstractArray)
     return mapreduce(inner, +, x, y)
+end
+function unsafe_inner(::LoopStyleMap, w::AbstractArray, x::AbstractArray, y::AbstractArray)
+    return mapreduce(inner, +, w, x, y)
 end
 
 unsafe_inner_simd() = quote
@@ -253,9 +304,17 @@ unsafe_inner_simd() = quote
         end
         return s
     end
+    function unsafe_inner(::LoopStyleSIMD, w::AbstractArray, x::AbstractArray, y::AbstractArray)
+        T = typeof(inner(zero(eltype(w)), zero(eltype(x)), zero(eltype(y)))*1)
+        s = zero(T)
+        @inbounds @simd for i in eachindex(w, x, y)
+            s += convert(T, inner(w[i], x[i], y[i]))
+        end
+        return s
+    end
 end
 
-@eval $(unsafe_inner_simd())
+@eval $(        unsafe_inner_simd())
 @eval $(recode!(unsafe_inner_simd(), simd_to_for...))
 @eval $(recode!(unsafe_inner_simd(), simd_to_inbounds...))
 
