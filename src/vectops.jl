@@ -370,7 +370,7 @@ end
 
 function unsafe_scale!(::Val{:alpha}, ls::LoopStyle, dst::AbstractArray,
                        α::Number, x::AbstractArray)
-    @dispatch_on_multiplier α unsafe_scale!(ls, dst, α, x)
+    @dispatch_on_value α unsafe_scale!(ls, dst, α, x)
     return nothing
 end
 
@@ -474,7 +474,7 @@ function xpby!(ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
 end
 function unsafe_xpby!(::Val{:beta}, ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
                       β::Number, y::AbstractArray)
-    @dispatch_on_multiplier β unsafe_xpby!(ls, dst, x, β, y)
+    @dispatch_on_value β unsafe_xpby!(ls, dst, x, β, y)
     return nothing
 end
 
@@ -551,21 +551,21 @@ end
 function unsafe_axpby!(::Val{:alpha_beta}, ls::LoopStyle, dst::AbstractArray,
                        α::Number, x::AbstractArray,
                        β::Number, y::AbstractArray)
-    @dispatch_on_multiplier α unsafe_axpby!(Val(:beta), ls, dst, α, x, β, y)
+    @dispatch_on_value α unsafe_axpby!(Val(:beta), ls, dst, α, x, β, y)
     return nothing
 end
 
 function unsafe_axpby!(::Val{:beta}, ls::LoopStyle, dst::AbstractArray,
                        α::Number, x::AbstractArray,
                        β::Number, y::AbstractArray)
-    @dispatch_on_multiplier β unsafe_axpby!(ls, dst, α, x, β, y)
+    @dispatch_on_value β unsafe_axpby!(ls, dst, α, x, β, y)
     return nothing
 end
 
 function unsafe_axpby!(::Val{:alpha}, ls::LoopStyle, dst::AbstractArray,
                        α::Number, x::AbstractArray,
                        β::Number, y::AbstractArray)
-    @dispatch_on_multiplier α unsafe_axpby!(ls, dst, α, x, β, y)
+    @dispatch_on_value α unsafe_axpby!(ls, dst, α, x, β, y)
     return nothing
 end
 

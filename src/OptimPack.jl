@@ -71,8 +71,7 @@ export
 
 # Public but not exported API.
 using TypeUtils: @public
-@public @dispatch_on_multiplier,
-        BoundedSet,
+@public BoundedSet,
         ConvexSet,
         Problems,
         adapt_multiplier_precision,
@@ -87,8 +86,6 @@ using TypeUtils: @public
         one_norm,
         project_direction!,
         project_variables!,
-        recode!,
-        recode,
         restart!,
         scale!,
         solve!,
@@ -99,6 +96,7 @@ using TypeUtils: @public
 
 using LinearAlgebra
 using Neutrals
+using Neutrals: @dispatch_on_value, recode, recode!
 using Printf
 using TypeUtils
 using Unitful
@@ -162,7 +160,7 @@ include("Problems.jl")
 function __init__()
     @static if !isdefined(Base, :get_extension)
         # Extend methods when other packages are loaded.
-        @require CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba" =  include(
+        @require CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba" include(
             "../ext/OptimPackCUDAExt.jl")
         @require CUTEst = "1b53aba6-35b6-5f92-a507-53c67d53f819" include(
             "../ext/OptimPackCUTEstExt.jl")
