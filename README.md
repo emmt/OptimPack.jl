@@ -5,8 +5,29 @@
 | [![][doc-dev-img]][doc-dev-url] | [![][license-img]][license-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
 
 
-OptimPack.jl is the Julia interface to [OptimPack][lib-optimpack-url], a C
-library for solving large scale optimization problems.
+`OptimPack.jl` is a [Julia](https://pkg.julialang.org/) package for solving optimization
+problems.
+
+## Univariate functions
+
+Brent's `fzero` and `fmin` methods.
+
+Global optimization: `BraDi` and `Step`.
+
+## Multivariate functions
+
+### Derivative free methods
+
+Powell's `COBYLA`, `BOBYQA`, and `NEWUOA` methods. These methods are not (yet) written in
+pure Julia, they require to load the `OptimPack_jll` artifact to use them.
+
+Nelder-Mead `Simplex` method.
+
+### Known gradient
+
+Spectral Projected Gradient (SPG) for a constrained problem (convex feasible set).
+
+VMLMB (SPG) for a bound constrained problem.
 
 
 ## Installation
@@ -26,45 +47,6 @@ To use the package in your code:
 ```julia
 using OptimPack
 ```
-
-### Installation with your own compiled libraries
-
-By default, the package manager will attend to download precompiled OptimPack
-libraries for your architecture so that you have nothing to compile.  These
-libraries are provided by the
-[OptimPackBuilder](https://github.com/emmt/OptimPackBuilder) project.  If your
-system is not part of the supported platforms or if you want to use
-OptimPack libraries compiled and installed by yourself (see intructions at
-[official OptimPack repository][lib-optimpack-url]) then you have to define 4
-environment variables **before** building `OptimPack.jl` package.  Each of
-these environment variables specifies the full path to one of the OptimPack
-dynamic libraries. These environment variables can be set before starting Julia
-or at Julia REPL, for instance by:
-
-```julia
-ENV["OPTIMPACK_OPK_LIB"] = "/usr/local/lib/libopk.so"
-ENV["OPTIMPACK_COBYLA_LIB"] = "/usr/local/lib/libcobyla.so"
-ENV["OPTIMPACK_BOBYQA_LIB"] = "/usr/local/lib/libbobyqa.so"
-ENV["OPTIMPACK_NEWUOA_LIB"] = "/usr/local/lib/libnewuoa.so"
-```
-
-Then proceed as for the other installation method: press `]` to enter the Pkg
-REPL and type the following commands:
-
-```julia
-(...) pkg> add https://github.com/emmt/OptimPack.jl
-```
-
-You may use URL `git@github.com:emmt/OptimPack.jl` if you want to use SSH
-instead of HTTPS.
-
-If you define the environment variables after adding `OptimPack.jl` package,
-just re-build the package:
-
-```julia
-(...) pkg> build OptimPack
-```
-
 
 ## Unconstrained Minimization of a Nonlinear Smooth Function
 
@@ -301,7 +283,5 @@ Run-time errors throw Julia exception.
 
 [codecov-img]: http://codecov.io/github/emmt/OptimPack.jl/coverage.svg?branch=master
 [codecov-url]: http://codecov.io/github/emmt/OptimPack.jl?branch=master
-
-[julia-url]: https://pkg.julialang.org/
 
 [lib-optimpack-url]: https://github.com/emmt/OptimPack
