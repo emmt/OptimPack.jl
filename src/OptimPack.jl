@@ -53,6 +53,9 @@ export
     Simplex,
     simplex,
 
+    # Linear conjugate-gradient method.
+    LinearConjugateGradient,
+
     # Spectral Projection Gradient.
     SPG,
     spg,
@@ -142,6 +145,8 @@ import .Brent: fmax, fmaxbrkt, fmin, fminbrkt, fzero
 
 include("BraDi.jl")
 include("Step.jl")
+
+include("LinearConjugateGradient.jl")
 
 include("SPG.jl")
 import .SPG: spg, spg!
