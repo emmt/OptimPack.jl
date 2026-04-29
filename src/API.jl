@@ -2,8 +2,27 @@
 
 # TODO documentation
 function solve! end
+
+"""
+    OptimPack.configure!(ctx; kwds...) -> ctx
+
+Configure the algorithm parameters in context `ctx` and return the context.
+
+Parameters are specified by keywords `kwds...` whose default values reflect the current
+settings in `ctx`. If parameters are modified while the algorithm is running, changes may
+only have an effect after restarting the algorithm.
+
+"""
 function configure! end
+
+"""
+    OptimPack.restart!(ctx) -> ctx
+
+Reset internal state in algorithm context `ctx` and return the context.
+
+"""
 function restart! end
+
 function iterate! end
 
 #--------------------------------------------------------------------- API for convex sets -
