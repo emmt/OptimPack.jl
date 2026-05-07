@@ -1,7 +1,7 @@
 """
     OptimPack.SPG
 
-This module implements the *Spectral Projected Gradient Method* (Version 2: "continuous
+This module implements the *Spectral Projected Gradient* method (Version 2: "continuous
 projected gradient direction") to find a local minimum of a multi-variate objective function
 with convex constraints. The algorithm is described in:
 

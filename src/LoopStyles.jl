@@ -8,9 +8,6 @@ module LoopStyles
 
 # TODO Test on GPU arrays.
 #
-# TODO Check that `axpby!(dst,α,x,0,y)` and `axpby!(dst,0,x,β,x)` are as fast as
-#   `scale!(dst,α,x)` and `scale!(dst,β,y)` respectively.
-#
 # TODO `@turbo` does not work well with neutral numbers.
 #
 # NOTE `@turbo` implies `@fastmath` and thus `isnan` is always false.
@@ -56,7 +53,7 @@ using TypeUtils: @public
 
 using StructuredArrays
 
-# Used to indicate undefined result.
+# Singleton type to indicate undefined result.
 struct Undefined end
 
 # Abstract indexing methods for the hierarchy and for methods signatures.
@@ -99,8 +96,8 @@ abstract type LoopStyleDot <: LoopStyle end
 """
     LoopStyleFor <: LoopStyle
 
-Abstract type of traits for arguments that can be efficiently indexed in
-simple `for ...` loops (with bounds checking).
+Abstract type of traits for arguments that can be efficiently indexed in simple `for ...`
+loops (with bounds checking). This should probably only used for debug.
 
 """
 abstract type LoopStyleFor <: LoopStyle end
@@ -148,7 +145,7 @@ LoopStyle (abstract)
  │
  ├╴LoopStyleDot (abstract) -> LoopStyles.Dot
  │
- ├╴LoopStyleGPU (abstract) -> LoopStyles.GPU
+ ├╴LoopStyleGPU (abstract) -> LoopStyles.GPU{API}
  │
  ╰╴LoopStyleFor (abstract) -> LoopStyles.For
     │
@@ -159,7 +156,7 @@ LoopStyle (abstract)
           ╰╴LoopStyleTurbo (abstract) -> LoopStyles.Turbo
 ```
 
-The idea is to use abstract types for method signatures so that fallback method naturally
+The idea is to use abstract types for method signatures so that a fallback method naturally
 follows from the hierarchy.
 
 """

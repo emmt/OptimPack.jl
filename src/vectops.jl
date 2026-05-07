@@ -95,8 +95,8 @@ function one_norm(::LoopStyleMap, x::AbstractArray)
     return mapreduce(one_norm, +, x)
 end
 
-# This function returns the code with SIMD loops. The returned expression can be
-# modified by the caller.
+# This function returns the code with SIMD loops. The returned expression can be modified by
+# the caller, typically by calling `recode!`.
 one_norm_simd() = quote
     function one_norm(::LoopStyleSIMD, x::AbstractArray)
         T = typeof(one_norm(zero(eltype(x)))*1)
@@ -214,7 +214,7 @@ considered as pairs of reals. The result is real-valued and computed as:
 
     s = Σᵢ xᵢ*yᵢ
 
-where `xᵢ` and `yᵢ` denote the `i`-the real values in `x` and `y` respectively.
+where `xᵢ` and `yᵢ` denote the `i`-th real values in `x` and `y` respectively.
 
 If `w`, an array of same shape as `x` and `y` is specified, the result is:
 
@@ -239,12 +239,14 @@ function inner end
 @inline inner(x::AbstractQuantity, y::Number) = inner(ustrip(x), y)*unit(x)
 
 # Inner product of 2 quantities.
-@inline inner(x::AbstractQuantity, y::AbstractQuantity) = inner(ustrip(x), ustrip(y))*(unit(x)*unit(y))
+@inline inner(x::AbstractQuantity, y::AbstractQuantity) =
+    inner(ustrip(x), ustrip(y))*(unit(x)*unit(y))
 
 # Triple inner product of 3 reals or 3 complexes. NOTE Mixing complexes and reals in inner
 # product is purposely not supported.
 @inline inner(w::Real, x::Real, y::Real) = w*x*y
-@inline inner(w::Complex, x::Complex, y::Complex) = inner(w.re, x.re, y.re) + inner(w.im, x.im, y.im)
+@inline inner(w::Complex, x::Complex, y::Complex) =
+    inner(w.re, x.re, y.re) + inner(w.im, x.im, y.im)
 
 # Triple inner product with 1 quantity and 2 numbers.
 @inline inner(w::Number, x::Number, y::AbstractQuantity) = inner(y, w, x)
@@ -252,10 +254,10 @@ function inner end
 @inline inner(w::AbstractQuantity, x::Number, y::Number) = inner(ustrip(w), x, y)*unit(w)
 
 # Triple inner product with 2 quantities and 1 number.
-@inline inner(w::AbstractQuantity, x::AbstractQuantity, y::Number) = inner(y, w, x)
-@inline inner(w::AbstractQuantity, x::Number, y::AbstractQuantity) = inner(x, w, y)
-@inline inner(w::Number, x::AbstractQuantity, y::AbstractQuantity) =
-    inner(w, ustrip(x), ustrip(y))*(unit(x)*unit(y))
+@inline inner(w::Number, x::AbstractQuantity, y::AbstractQuantity) = inner(x, y, w)
+@inline inner(w::AbstractQuantity, x::Number, y::AbstractQuantity) = inner(w, y, x)
+@inline inner(w::AbstractQuantity, x::AbstractQuantity, y::Number) =
+    inner(ustrip(w), ustrip(x), y)*(unit(w)*unit(x))
 
 # Triple inner product with 3 quantities.
 @inline inner(w::AbstractQuantity, x::AbstractQuantity, y::AbstractQuantity) =
@@ -419,20 +421,24 @@ See also [`OptimPack.scale!`](@ref) and [`OptimPack.LoopStyle`](@ref).
 function mult!(dst::AbstractArray, x::AbstractArray, y::AbstractArray)
     return mult!(LoopStyle(dst, x, y), dst, x, y)
 end
+
 function mult!(ls::LoopStyle, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
     # TODO arguments should be real-valued?
     axes(dst) == axes(x) == axes(y) || throw_incompatible_axes()
     unsafe_mult!(ls, dst, x, y)
     return dst
 end
+
 function unsafe_mult!(::LoopStyleMap, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
     map!(*, dst, x, y)
     return nothing
 end
+
 function unsafe_mult!(::LoopStyleDot, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
     @. dst = x*y
     return nothing
 end
+
 unsafe_mult!_simd() = quote
     function unsafe_mult!(::LoopStyleSIMD, dst::AbstractArray, x::AbstractArray, y::AbstractArray)
         @inbounds @simd for i in eachindex(dst, x, y)
@@ -472,6 +478,7 @@ function xpby!(ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
     unsafe_xpby!(Val(:beta), ls, dst, x, adapt_multiplier_precision(β, y), y)
     return dst
 end
+
 function unsafe_xpby!(::Val{:beta}, ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
                       β::Number, y::AbstractArray)
     @dispatch_on_value β unsafe_xpby!(ls, dst, x, β, y)

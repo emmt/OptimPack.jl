@@ -61,8 +61,8 @@ export
     simplex,
     issuccess
 
-using TypeUtils: @public
 # Public symbols that are not exported.
+using TypeUtils: @public
 @public Context,
         build_simplex!,
         configure!,
