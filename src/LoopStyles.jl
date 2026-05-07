@@ -171,7 +171,7 @@ LoopStyle(x::LoopStyle) = x
 @inline joint_styles_result(x, y, a::LoopStyle, b::Undefined) = a
 @inline joint_styles_result(x, y, a::Undefined, b::LoopStyle) = b
 @inline joint_styles_result(x, y, a::T, b::T) where {T<:LoopStyle} = a
-@noinline joint_styles_result(x, y, ::Any, ::Any) = throw_bad_argument(
+@noinline joint_styles_result(x, y, ::Any, ::Any) = argument_error(
     "joint indexing for `$(typeof(x))` and `$(typeof(y))` is not supported")
 
 """
@@ -261,10 +261,10 @@ joint_styles(x::LoopStyle, y::Scalar) = x
 
 # GPU arrays can only be combined with GPU arrays.
 joint_styles(x::GPU{API}, y::GPU{API}) where {API} = GPU{API}()
-joint_styles(x::GPU, y::LoopStyle) = throw_bad_argument(
+joint_styles(x::GPU, y::LoopStyle) = argument_error(
     "cannot mix GPU array(s) and other array(s)")
-joint_styles(x::GPU{API₁}, y::GPU{API₂}) where {API₁,API₂} = throw_bad_argument(
-    "cannot mix GPU array(s) with API $(API₁) and $(API₂)")
+joint_styles(x::GPU{API₁}, y::GPU{API₂}) where {API₁,API₂} = argument_error(
+    "cannot mix GPU arrays with different APIs, here `$(API₁)` and `$(API₂)`")
 
 # Encode rules for other loop styles with the first operand being the most efficient and the
 # second operand being the least efficient.
@@ -276,7 +276,7 @@ let styles = [:Turbo, :SIMD, :InBounds, :Dot, :For, :Map]
     end
 end
 
-@noinline throw_bad_argument(msg::AbstractString) = throw(ArgumentError(msg))
-@noinline throw_bad_argument(args...) = throw_bad_argument(string(args...))
+@noinline argument_error(msg::AbstractString) = throw(ArgumentError(msg))
+@noinline argument_error(args...) = argument_error(string(args...))
 
 end # module
