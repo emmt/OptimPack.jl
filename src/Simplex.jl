@@ -444,6 +444,17 @@ status_summary(sym::Symbol) =
 
 @noinline unknown_status(sym::Symbol) = "Unknown status `:$sym`"
 
+status_color(ctx::Context) = status_color(ctx.status)
+status_color(sym::Symbol) =
+    sym == :allocating           ? :cyan :
+    sym == :initializing         ? :cyan :
+    sym == :searching            ? :cyan :
+    sym == :convergence_in_f     ? :green :
+    sym == :convergence_in_x     ? :green :
+    sym == :rounding_errors      ? :yellow :
+    sym == :too_many_iterations  ? :red :
+    sym == :too_many_evaluations ? :red : :red
+
 const MinOrdering = Union{QuickHeaps.TotalMinOrdering,
                           Base.Order.ReverseOrdering{QuickHeaps.TotalMaxOrdering},
                           Base.Order.ForwardOrdering}
@@ -462,12 +473,13 @@ function Base.show(io::IO, mime::MIME"text/plain", ctx::Context)
         print(io, "\n\n• Number of variables: ", ctx.n)
         print(io, "\n\n• Status: ")
         print(io, status_summary(ctx), " (")
+        color = status_color(ctx)
         if issuccess(ctx)
-            printstyled(io, "success"; color=:green)
-        elseif ctx.status ∈ (:allocating, :initializing)
-            printstyled(io, Symbol(ctx.status); color=:yellow)
+            printstyled(io, "success"; color=color)
+        elseif ctx.status ∈ (:too_many_iterations, :too_many_evaluations)
+            printstyled(io, "failure"; color=color)
         else
-            printstyled(io, "failure"; color=:red)
+            printstyled(io, Symbol(ctx.status); color=color)
         end
         print(io, ")")
         if ctx.evaluations > 0
@@ -1265,11 +1277,8 @@ function simple_observer(ctx::Context, f)
             ctx.LVR, ctx.f_best, ctx.f_worst)
     status = ctx.status
     if status !== :searching
-        color =
-            issuccess(ctx) ? :green  :
-            status === :rounding_errors ? :yellow : :red
         print("# Termination status: `")
-        printstyled(":", ctx.status; color=color)
+        printstyled(":", ctx.status; color=status_color(status))
         println("`")
     end
     nothing
