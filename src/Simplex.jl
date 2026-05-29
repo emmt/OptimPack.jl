@@ -1264,10 +1264,10 @@ function simple_observer(ctx::Context, f)
     @printf("  %6d %6d %11.3e %23.15e %23.15e\n", ctx.iterations, ctx.evaluations,
             ctx.LVR, ctx.f_best, ctx.f_worst)
     status = ctx.status
-    if runlevel > :searching
+    if status !== :searching
         color =
-            runlevel == SUCCESS ? :green  :
-            runlevel == WARNING ? :yellow : :red
+            issuccess(ctx) ? :green  :
+            status === :rounding_errors ? :yellow : :red
         print("# Termination status: `")
         printstyled(":", ctx.status; color=color)
         println("`")
