@@ -23,27 +23,6 @@ else
     end
 end
 
-"""
-    OptimPack.adapt_multiplier_precision(α, x)
-    OptimPack.adapt_multiplier_precision(α, typeof(x))
-    OptimPack.adapt_multiplier_precision(eltype(x), α)
-
-Adapt the precision of the multiplier `α` to that of the elements of array `x`.
-
-"""
-adapt_multiplier_precision(α::Number, x::AbstractArray) =
-    adapt_multiplier_precision(α, typeof(x))
-adapt_multiplier_precision(α::Number, ::Type{T}) where {T<:AbstractArray} =
-    adapt_multiplier_precision(eltype(T), α)
-
-adapt_multiplier_precision(::Type{T}, α::Number) where {T<:Number} =
-    adapt_multiplier_precision(get_precision(T), α)
-
-adapt_multiplier_precision(::Type{T}, α::StaticMultiplier) where {T<:AbstractFloat} = α
-adapt_multiplier_precision(::Type{T}, α::Number) where {T<:AbstractFloat} =
-    # TODO may not be a good idea, throw instead
-    convert_floating_point_type((isconcretetype(T) ? T : Float64), α)
-
 # Code conversion rules between different loop styles.
 #
 # The idea is to code each method for SIMD loops and use these rules to automatically
@@ -340,7 +319,7 @@ function scale!(x::AbstractArray, α::Number)
 end
 
 function scale!(ls::LoopStyle, x::AbstractArray, α::Number)
-    unsafe_scale!(Val(:alpha), ls, x, adapt_multiplier_precision(α, x), x)
+    unsafe_scale!(ls, x, dispatch(α), x)
     return x
 end
 
@@ -366,12 +345,13 @@ end
 
 function scale!(ls::LoopStyle, dst::AbstractArray, α::Number, x::AbstractArray)
     axes(dst) == axes(x) || throw_incompatible_axes()
-    unsafe_scale!(Val(:alpha), ls, dst, adapt_multiplier_precision(α, x), x)
+    unsafe_scale!(ls, dst, dispatch(α), x)
     return dst
 end
 
-function unsafe_scale!(::Val{:alpha}, ls::LoopStyle, dst::AbstractArray,
-                       α::Number, x::AbstractArray)
+function unsafe_scale!(ls::LoopStyle, dst::AbstractArray,
+                       _α::Dispatch{<:Number}, x::AbstractArray)
+    α = adapt_multiplier_precision(_α[], x)
     @dispatch_on_value α unsafe_scale!(ls, dst, α, x)
     return nothing
 end
@@ -475,12 +455,13 @@ end
 function xpby!(ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
                β::Number, y::AbstractArray)
     axes(dst) == axes(x) == axes(y) || throw_incompatible_axes()
-    unsafe_xpby!(Val(:beta), ls, dst, x, adapt_multiplier_precision(β, y), y)
+    unsafe_xpby!(ls, dst, x, dispatch(β), y)
     return dst
 end
 
-function unsafe_xpby!(::Val{:beta}, ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
-                      β::Number, y::AbstractArray)
+function unsafe_xpby!(ls::LoopStyle, dst::AbstractArray, x::AbstractArray,
+                      _β::Dispatch{<:Number}, y::AbstractArray)
+    β = adapt_multiplier_precision(_β[], y)
     @dispatch_on_value β unsafe_xpby!(ls, dst, x, β, y)
     return nothing
 end
@@ -549,30 +530,23 @@ function axpby!(ls::LoopStyle, dst::AbstractArray,
                 α::Number, x::AbstractArray,
                 β::Number, y::AbstractArray)
     axes(dst) == axes(x) == axes(y) || throw_incompatible_axes()
-    unsafe_axpby!(Val(:alpha_beta), ls, dst,
-                  adapt_multiplier_precision(α, x), x,
-                  adapt_multiplier_precision(β, y), y)
+    unsafe_axpby!(ls, dst, dispatch(α), x, dispatch(β), y)
     return dst
 end
 
-function unsafe_axpby!(::Val{:alpha_beta}, ls::LoopStyle, dst::AbstractArray,
-                       α::Number, x::AbstractArray,
-                       β::Number, y::AbstractArray)
-    @dispatch_on_value α unsafe_axpby!(Val(:beta), ls, dst, α, x, β, y)
-    return nothing
-end
-
-function unsafe_axpby!(::Val{:beta}, ls::LoopStyle, dst::AbstractArray,
-                       α::Number, x::AbstractArray,
-                       β::Number, y::AbstractArray)
-    @dispatch_on_value β unsafe_axpby!(ls, dst, α, x, β, y)
-    return nothing
-end
-
-function unsafe_axpby!(::Val{:alpha}, ls::LoopStyle, dst::AbstractArray,
-                       α::Number, x::AbstractArray,
-                       β::Number, y::AbstractArray)
+function unsafe_axpby!(ls::LoopStyle, dst::AbstractArray,
+                       _α::Dispatch{<:Number}, x::AbstractArray,
+                       β::Union{Number,Dispatch{<:Number}}, y::AbstractArray)
+    α = adapt_multiplier_precision(_α[], x)
     @dispatch_on_value α unsafe_axpby!(ls, dst, α, x, β, y)
+    return nothing
+end
+
+function unsafe_axpby!(ls::LoopStyle, dst::AbstractArray,
+                       α::Number, x::AbstractArray,
+                       _β::Dispatch{<:Number}, y::AbstractArray)
+    β = adapt_multiplier_precision(_β[], y)
+    @dispatch_on_value β unsafe_axpby!(ls, dst, α, x, β, y)
     return nothing
 end
 

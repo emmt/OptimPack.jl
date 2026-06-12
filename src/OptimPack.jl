@@ -98,10 +98,20 @@ using TypeUtils: @public
         xpby!
 
 using LinearAlgebra
+
 using Neutrals
-using Neutrals: @dispatch_on_value, recode, recode!
+using Neutrals:
+    @dispatch_on_value,
+    Dispatch,
+    adapt_multiplier_precision,
+    dispatch,
+    recode,
+    recode!
+
 using Printf
+
 using TypeUtils
+
 using Unitful
 using Unitful: AbstractQuantity
 
